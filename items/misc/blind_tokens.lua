@@ -191,6 +191,7 @@ end
 
 local card_hoverref = Card.draw
 function Card:draw(layer)
+    if not (self.config and self.config.center) then return card_hoverref(self, layer) end
     local ref = card_hoverref(self, layer)    
     if self.config.center.set_sprites and self.children and self.children.floating_sprite and self.config.center.set == "CBlind" then
         local scale_mod = 0.6

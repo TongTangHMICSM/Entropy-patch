@@ -1141,6 +1141,7 @@ end
 
 local card_draw = Card.draw
 function Card:draw(...)
+    if not (self.config and self.config.center) then return card_draw(self, ...) end
     if self.config.center.key == "j_stencil" then
         if (G.stencil_bypass or not G.GAME.modifiers.entr_gfb or self.area ~= G.jokers) then
             card_draw(self, ...)

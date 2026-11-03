@@ -840,6 +840,8 @@ end
 
 local card_drawref = Card.draw
 function Card:draw(layer)
+    -- cards with an unregistered center have no key/set; drawing them must not error
+    if not (self.config and self.config.center) then return card_drawref(self, layer) end
     if self.config.center.key == "j_entr_xekanos" then
         if entr_xekanos_dt > 0.05 then
             local v = self
@@ -965,6 +967,12 @@ Entropy.ChaosConversions.Omen = "Twisted"
 Entropy.ChaosConversions.Pact = "Twisted"
 local ref = create_card
 function create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append, ...)
+    -- A forced key that is not registered builds a Card with a nil center, which later
+    -- hard-crashes Card:remove (used_jokers[nil]). Fall back to a normal pool roll instead.
+    if forced_key and not G.P_CENTERS[forced_key] then
+        print("[Entropy] create_card: unknown forced_key '"..tostring(forced_key).."', rolling from pool")
+        forced_key = nil
+    end
     if not _rarity and not legendary and (next(find_joker("j_entr_chaos")) or next(find_joker("j_entr_parakmi")) or G.GAME.modifiers.entr_parakmi) and not forced_key and not G.GAME.entr_parakmi_bypass then
         _type = Entropy.get_random_set(next(find_joker("j_entr_parakmi")) or G.GAME.modifiers.entr_parakmi)
     end

@@ -9782,7 +9782,7 @@ end
 
 local sd = CardArea.remove_card
 function CardArea:remove_card(card, ...)
-    if G.jokers and card and card.config.center.calculate then
+    if G.jokers and card and card.config and card.config.center and card.config.center.calculate then
         card.config.center:calculate(card, {being_removed = true, card = card})
     end
     local ret = sd(self, card, ...)

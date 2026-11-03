@@ -1267,6 +1267,8 @@ Entropy.Consumable {
             if v.edition then card:set_edition(v.edition) end
             if v.seal then card:set_seal(v.seal) end
         end
+        -- start_dissolve alone never tells on-destroy jokers (Canio etc.); fire the context first
+        SMODS.calculate_context({remove_playing_cards = true, removed = cards})
         for i, v in pairs(cards) do
             v:start_dissolve()
         end
