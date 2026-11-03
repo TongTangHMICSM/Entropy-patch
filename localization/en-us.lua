@@ -1765,8 +1765,8 @@ local decs = {
                 name = "HexaCryonic, Witch of Light",
                 text = {
 					"Extra played cards provide",
-					"{C:gold}+3{} Ascension Power",
-					"{C:attention}+3{} card selection limit"
+					"{C:gold}+#1#{} Ascension Power",
+					"{C:attention}+#2#{} card selection limit"
                 },
             },
 			j_entr_hexa_cryptid = {
@@ -1774,7 +1774,7 @@ local decs = {
                 text = {
 					"Extra played cards provide {X:gold,C:white}X3{}",
 					"as much Ascension Power",
-					"{C:attention}+#1#{} card selection limit"
+					"{C:attention}+#2#{} card selection limit"
                 },
             },
 			j_entr_grahkon = {

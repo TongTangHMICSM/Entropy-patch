@@ -2642,10 +2642,22 @@ Entropy.Joker{
     remove_from_deck = function(self, card)
         Entropy.change_selection_limit(-card.ability.csl)
     end,
+    calculate = function(self, card, context)
+        -- only cards past the vanilla 5 are the "extra" ones this joker's limit buys
+        if context.individual and context.cardarea == G.play and context.other_card then
+            for i, v in ipairs(G.play.cards) do
+                if v == context.other_card and i > 5 then
+                    return { plus_asc = card.ability.asc_fac }
+                end
+            end
+        end
+    end,
     loc_vars = function(self, q, card)
+        Entropy.ensure_ascpow_tutorial(q)
         return {
             key = (SMODS.Mods["Cryptid"] or {}).can_load and "j_entr_hexa_cryptid" or nil,
             vars = {
+                number_format(card.ability.asc_fac),
                 number_format(card.ability.csl)
             }
         }
