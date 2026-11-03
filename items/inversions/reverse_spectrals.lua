@@ -153,7 +153,9 @@ Entropy.Consumable{
 	pos = {x=10,y=4},
     --soul_pos = { x = 5, y = 0},
     use = function(self, card2, area, copier)
-        local lower = Entropy.find_previous_in_pool(G.jokers.highlighted[1].edition.key, "Edition", "e_negative")
+        local joker = G.jokers.highlighted[1]
+        local lower = Entropy.find_previous_in_pool(joker.edition.key, "Edition", "e_negative")
+        if not lower then return end
         local cards = {}
         local rcards = {}
         for i, v in pairs(G.hand.cards) do if not v.edition then cards[#cards+1] = v end end
@@ -162,9 +164,7 @@ Entropy.Consumable{
         Entropy.flip_then(rcards, function(card, area)
             card:set_edition(lower)
         end)
-        if not SMODS.is_eternal(G.jokers.highlighted[1]) then
-            G.jokers.highlighted[1]:start_dissolve() 
-        end
+        SMODS.destroy_cards(joker)
     end,
     can_use = function(self, card)
         return G.jokers 
@@ -172,6 +172,7 @@ Entropy.Consumable{
         and G.jokers.highlighted[1] 
         and G.jokers.highlighted[1].edition 
         and not SMODS.is_eternal(G.jokers.highlighted[1])
+        and Entropy.find_previous_in_pool(G.jokers.highlighted[1].edition.key, "Edition", "e_negative") ~= nil
 	end,
     loc_vars = function(self, q, card)
         local str = localize("k_none")

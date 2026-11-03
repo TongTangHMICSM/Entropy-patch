@@ -9804,8 +9804,9 @@ function CardArea:remove_card(card, ...)
             func = function()
                 for i, v in pairs(self.cards or {}) do
                     if v.ability.already_big_and_fat then
+                        local prev_extra = self.cards[i-1] and self.cards[i-1].ability.extra
                         Spectrallib.manipulate(v, {
-                            value = 1/(self.cards[i-1] and self.cards[i-1].ability.extra and self.cards[i-1].ability.extra.temp_values or 1.5)
+                            value = 1/((type(prev_extra) == "table" and prev_extra.temp_values) or 1.5)
                         })
                         v.ability.already_big_and_fat = nil
                     end
