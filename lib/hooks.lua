@@ -965,6 +965,25 @@ Entropy.ChaosConversions.Command = "Twisted"
 Entropy.ChaosConversions.Star = "Twisted"
 Entropy.ChaosConversions.Omen = "Twisted"
 Entropy.ChaosConversions.Pact = "Twisted"
+-- Diagnostic: a payload with no pool source can never produce a card. Lua tail calls erase the
+-- caller's stack frame, so name the payload's fields instead to identify the booster.
+local scc_ref = SMODS.create_card
+function SMODS.create_card(t, ...)
+    if type(t) == "table" and not t.ability and not t.config and not t.key and not t.set
+        and not t.attributes and not t.enhancement and not (t.front or t.rank or t.suit) then
+        local keys = {}
+        for k in pairs(t) do keys[#keys + 1] = tostring(k) end
+        local aname = "nil/other"
+        for name, area in pairs({ pack_cards = G.pack_cards, shop_jokers = G.shop_jokers,
+            shop_booster = G.shop_booster, shop_vouchers = G.shop_vouchers, jokers = G.jokers,
+            hand = G.hand, title_top = G.title_top, consumeables = G.consumeables }) do
+            if area and area == t.area then aname = name end
+        end
+        print("[Entropy] create_card payload without key/set: {" .. table.concat(keys, ", ") .. "} area=" .. aname)
+    end
+    return scc_ref(t, ...)
+end
+
 local ref = create_card
 function create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append, ...)
     -- A forced key that is not registered builds a Card with a nil center, which later
@@ -975,6 +994,13 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
     end
     if not _rarity and not legendary and (next(find_joker("j_entr_chaos")) or next(find_joker("j_entr_parakmi")) or G.GAME.modifiers.entr_parakmi) and not forced_key and not G.GAME.entr_parakmi_bypass then
         _type = Entropy.get_random_set(next(find_joker("j_entr_parakmi")) or G.GAME.modifiers.entr_parakmi)
+    end
+    -- A booster can hand back a payload with neither set nor key; the pool code then dies in
+    -- SMODS.poll_object. Roll a Joker instead of taking the run down with it.
+    if not _type and not forced_key then
+        print("[Entropy] create_card: no type and no forced key, rolling a Joker")
+        print(debug.traceback("", 2))
+        _type = "Joker"
     end
     if _type == "BlindTokens" then
         _type = "CBlind"
