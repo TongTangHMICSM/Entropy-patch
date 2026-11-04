@@ -965,6 +965,18 @@ Entropy.ChaosConversions.Command = "Twisted"
 Entropy.ChaosConversions.Star = "Twisted"
 Entropy.ChaosConversions.Omen = "Twisted"
 Entropy.ChaosConversions.Pact = "Twisted"
+-- Vanilla's joker `individual` branch assumes a played-hand scoring context and reads
+-- #context.scoring_hand, but mods (Entropy, Spectrallib, forcetrigger paths) send individual
+-- contexts for hand/temp areas without it. Supply it once so no joker sees the bare context.
+local calc_joker_norm = Card.calculate_joker
+function Card:calculate_joker(context, ...)
+    if type(context) == "table" and context.individual and not context.scoring_hand then
+        context.scoring_hand = (context.cardarea and context.cardarea.cards)
+            or (G.play and G.play.cards) or {}
+    end
+    return calc_joker_norm(self, context, ...)
+end
+
 -- Diagnostic: a payload with no pool source can never produce a card. Lua tail calls erase the
 -- caller's stack frame, so name the payload's fields instead to identify the booster.
 local scc_ref = SMODS.create_card

@@ -597,7 +597,8 @@ Entropy.Edition{
 				local effects = {eval}
 				if context.main_scoring then 
 					eval.chips = v:get_chip_bonus() or 0
-					SMODS.calculate_context({individual = true, other_card=v, cardarea = v.area})
+					-- vanilla jokers (Photograph) read #context.scoring_hand in this context
+					SMODS.calculate_context({individual = true, other_card=v, cardarea = v.area, scoring_hand = G.play.cards})
 				end
 				for _,v in ipairs(post or {}) do effects[#effects+1] = v end
 				SMODS.trigger_effects(effects, v)

@@ -182,7 +182,7 @@ Entropy.Joker{
             context.main_scoring = nil
             eval = eval or {}
             local effects = {eval}
-            SMODS.calculate_context({individual = true, other_card=context.other_card, cardarea = G.play, scoring_hand = context.scoring_hand})
+            SMODS.calculate_context({individual = true, other_card=context.other_card, cardarea = G.play, scoring_hand = context.scoring_hand or G.play.cards})
             for _,v in ipairs(post or {}) do effects[#effects+1] = v end
             SMODS.trigger_effects(effects, context.other_card)
             if context.other_card.config.center.set ~= "Enhanced" then
@@ -200,7 +200,7 @@ Entropy.Joker{
                 context.main_scoring = nil
                 eval = eval or {}
                 local effects = {eval}
-                SMODS.calculate_context({individual = true, other_card=v, cardarea = G.play, scoring_hand = context.scoring_hand})
+                SMODS.calculate_context({individual = true, other_card=v, cardarea = G.play, scoring_hand = context.scoring_hand or G.play.cards})
                 for _,v in ipairs(post or {}) do effects[#effects+1] = v end
                 SMODS.trigger_effects(effects, v)
                 if v.config.center.set ~= "Enhanced" then
@@ -620,15 +620,6 @@ Entropy.Joker{
         "j_entr_stand_arrow",        
     },
     calculate = function(self, card, context)
-        if context.end_of_round and context.main_eval then
-            if G.GAME.current_round.hands_left > 0 or G.GAME.current_round.discards_left > 0 then
-                card.ability.extra.active = nil
-                return {
-                    message = localize("k_inactive_ex"),
-                    colour = Entropy.void_gradient
-                }
-            end
-        end
         if context.skip_blind then
             card.ability.extra.active = nil
             return {
@@ -637,12 +628,18 @@ Entropy.Joker{
             }
         end
         if context.ante_end and context.ante_change then
-            if card.ability.extra.active then
+            -- judge the ante by the round that closed it (the boss); leftovers in earlier
+            -- rounds used to void the whole ante, which made the slot gain one-shot
+            local spent_everything = (G.GAME.current_round.hands_left or 0) <= 0
+                and (G.GAME.current_round.discards_left or 0) <= 0
+            if card.ability.extra.active and spent_everything then
                 G.E_MANAGER:add_event(Event{
                     trigger = "after",
                     func = function()
                         card:juice_up()
-                        Entropy.handle_card_limit(G.jokers, card.ability.extra.joker_slots_mod)
+                        -- slot credit has to live on the card: SMODS recomputes config.card_limit
+                        card.ability.card_limit = (card.ability.card_limit or 0) + card.ability.extra.joker_slots_mod
+                        G.jokers:handle_card_limit()
                         play_sound("entr_void_generic")
                         return true
                     end

@@ -564,7 +564,7 @@ Entropy.Joker{
                 })
                 local v = G.play.cards[#G.play.cards]
                 if G.play.cards and v then
-                    local results = eval_card(v, {cardarea=G.play,main_scoring=true, forcetrigger=true, individual=true}) or {}
+                    local results = eval_card(v, {cardarea=G.play,main_scoring=true, forcetrigger=true, individual=true, scoring_hand=G.play.cards}) or {}
                     if results then
                         for i, v2 in pairs(results) do
                             for i2, result in pairs(type(v2) == "table" and v2 or {}) do
