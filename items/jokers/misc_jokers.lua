@@ -969,7 +969,7 @@ Entropy.Joker{
             local check
             for i, v in ipairs(G.jokers.cards) do
                 if Cryptid.safe_get(v.config.center, "pools", "Candy") or v:is_food() then
-                    SMODS.destroy_Cards(v)
+                    SMODS.destroy_cards(v)
                     check = true
                 end
             end
