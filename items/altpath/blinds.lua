@@ -1098,7 +1098,10 @@ Entropy.Blind{
         return G.GAME.entr_alt
     end,
 	calculate = function(self, blind, context)
-		if context.post_trigger and not context.other_card.debuff and not G.GAME.blind.disabled then
+		-- Spectrallib replays copied blinds in every context, including mod-level ones where
+		-- other_card is a Mod object; only touch things that are actually cards.
+		if context.post_trigger and context.other_card and context.other_card.set_debuff
+			and not context.other_card.debuff and not G.GAME.blind.disabled then
 			context.other_card:set_debuff(true)
 			context.other_card:juice_up()
 			G.GAME.blind.triggered = true
@@ -1211,19 +1214,22 @@ Entropy.Blind{
 		if not G.GAME.blind.disabled then
 			Entropy.handle_card_limit(G.hand, -3)
 			Entropy.change_selection_limit(-1)
-			for i, v in ipairs(G.GAME.blind.cards) do v.ability.forced_selection = nil end
+			for i, v in ipairs(G.GAME.blind.cards or {}) do v.ability.forced_selection = nil end
 		end
 	end,
 	disable = function()
 		Entropy.handle_card_limit(G.hand, -3)
 		Entropy.change_selection_limit(-1)
-		for i, v in ipairs(G.GAME.blind.cards) do v.ability.forced_selection = nil end
+		for i, v in ipairs(G.GAME.blind.cards or {}) do v.ability.forced_selection = nil end
 	end
 }
 local highlighted_ref = Card.highlight
 function Card:highlight(is_highlighted)
 	highlighted_ref(self, is_highlighted)
 	if Entropy.blind_is("bl_entr_labyrinth") then
+		-- set_blind only runs once the blind actually starts; run-select previews and
+		-- restored saves can highlight cards before that.
+		G.GAME.blind.cards = G.GAME.blind.cards or {}
 		if is_highlighted and self.area == G.hand then
 			if not self.ability.forced_selection then
 				local cards = {}
