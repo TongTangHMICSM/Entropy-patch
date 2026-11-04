@@ -2039,10 +2039,45 @@ end
 local upd = Game.update
 local ee2dt = 0
 local cdt = 0
+local entr_orphan_play_ticks = 0
 function Game:update(dt)
 	upd(self, dt)
 	cdt = cdt + dt
 	if cdt > 0.01 then
+		-- A play that never resolved leaves its cards stranded in G.play: the hand is still
+		-- selectable but Play counts no highlighted hand cards, so the run softlocks. Wait
+		-- ~0.3s before acting so normal play transitions are untouched.
+		if G.play and G.play.cards and G.STATES then
+			if G.STATE == G.STATES.SELECTING_HAND and #G.play.cards > 0 then
+				entr_orphan_play_ticks = entr_orphan_play_ticks + 1
+				if entr_orphan_play_ticks > 30 then
+					for i = #G.play.cards, 1, -1 do
+						local c = G.play.cards[i]
+						G.play:remove_card(c)
+						if c.ability and (c.ability.set == "Joker" or c.ability.consumeable) then
+							if G.jokers then G.jokers:emplace(c, "front") end
+						elseif G.hand then
+							G.hand:emplace(c)
+						end
+					end
+					if G.hand then G.hand:sort() end
+					entr_orphan_play_ticks = 0
+				end
+			else
+				entr_orphan_play_ticks = 0
+				-- jokers that moved themselves into G.play and lost their return event
+				if G.play.cards and G.jokers and G.STATE ~= G.STATES.HAND_PLAYED then
+					for i = #G.play.cards, 1, -1 do
+						local c = G.play.cards[i]
+						if c and c.ability and (c.ability.set == "Joker" or c.ability.consumeable)
+							and not c.getting_sliced then
+							G.play:remove_card(c)
+							G.jokers:emplace(c, "front")
+						end
+					end
+				end
+			end
+		end
 		if G.jokers and G.GAME.blind and G.GAME.blind.config.blind.entr_lose_instead then
 			G.HUD_blind:get_UIE_by_ID("score_at_least").config.text = localize("ph_blind_score_less_than")
 			for i, v in pairs(G.jokers.cards) do
