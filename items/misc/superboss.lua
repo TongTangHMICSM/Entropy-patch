@@ -525,7 +525,9 @@ function G.FUNCS.can_enter_ee(e)
 end
 function G.FUNCS.enter_ee(e)
     stop_use()
-    G.EE_DOOR_SPRITE:remove()
+    -- the door is created with the EE UI and torn down after the transition; a second
+    -- click must not assume it is still there
+    if G.EE_DOOR_SPRITE then G.EE_DOOR_SPRITE:remove() end
     G.EE_DOOR_SPRITE = SMODS.create_sprite(0, 0, 6, 6, "entr_intro_door_anim")
     if G.blind_select then 
         G.E_MANAGER:add_event(Event{
@@ -541,8 +543,11 @@ function G.FUNCS.enter_ee(e)
                 G.E_MANAGER:add_event(Event({
                 trigger = 'before', delay = 0.2,
                 func = function()
-                    G.blind_select.alignment.offset.y = 40
-                    G.blind_select.alignment.offset.x = 0
+                    -- the immediate events queued below remove blind_select before this runs
+                    if G.blind_select then
+                        G.blind_select.alignment.offset.y = 40
+                        G.blind_select.alignment.offset.x = 0
+                    end
                     return true
                 end}))
                 G.E_MANAGER:add_event(Event({
@@ -560,7 +565,7 @@ function G.FUNCS.enter_ee(e)
                     G.GAME.round_resets.blind_tag = _tag and _tag.config and _tag.config.ref_table or nil
                     G.GAME.round_resets.blind = e.config.ref_table
                     G.GAME.round_resets.blind_states["Boss"] = 'Current'
-                    G.blind_select:remove()
+                    if G.blind_select then G.blind_select:remove() end
                     G.blind_select = nil
                     delay(0.2)
                     return true
