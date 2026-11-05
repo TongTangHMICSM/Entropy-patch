@@ -2096,8 +2096,11 @@ function Game:update(dt)
 					for i = #G.play.cards, 1, -1 do
 						local c = G.play.cards[i]
 						G.play:remove_card(c)
-						if c.ability and (c.ability.set == "Joker" or c.ability.consumeable) then
+						if c.ability and c.ability.set == "Joker" then
 							if G.jokers then G.jokers:emplace(c, "front") end
+						elseif c.ability and c.ability.consumeable then
+							-- Consumables belong in the consumable slots, not the Joker slots.
+							if G.consumeables then G.consumeables:emplace(c, "front") end
 						elseif G.hand then
 							G.hand:emplace(c)
 						end
@@ -2107,11 +2110,14 @@ function Game:update(dt)
 				end
 			else
 				entr_orphan_play_ticks = 0
-				-- jokers that moved themselves into G.play and lost their return event
+				-- Jokers that moved themselves into G.play and lost their return event.
+				-- NOTE: only Jokers, never consumables. Consumables legitimately pass through
+				-- G.play while being used (PLAY_TAROT etc.), so treating them like Jokers here
+				-- shoved used consumables into the Joker slots.
 				if G.play.cards and G.jokers and G.STATE ~= G.STATES.HAND_PLAYED then
 					for i = #G.play.cards, 1, -1 do
 						local c = G.play.cards[i]
-						if c and c.ability and (c.ability.set == "Joker" or c.ability.consumeable)
+						if c and c.ability and c.ability.set == "Joker"
 							and not c.getting_sliced then
 							G.play:remove_card(c)
 							G.jokers:emplace(c, "front")
