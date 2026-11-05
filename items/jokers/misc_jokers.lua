@@ -9701,6 +9701,41 @@ function Entropy.rotisserie_is_chicken(card)
     return card and card.config and card.config.center and card.config.center.key == "j_entr_rotisserie_chicken"
 end
 
+local function entr_rb_is_num(v)
+    return (Spectrallib.is_number and Spectrallib.is_number(v)) or type(v) == "number"
+end
+
+local function entr_rb_gt(a, b)
+    if type(a) == "number" and type(b) == "number" then return a > b end
+    return to_big(a) > to_big(b)
+end
+
+-- Cycle-safe deep copy of a card's value tables for snapshotting.
+local function entr_rb_deep(t, seen)
+    if type(t) ~= "table" then return t end
+    seen = seen or {}
+    if seen[t] then return seen[t] end
+    local o = {}
+    seen[t] = o
+    for k, v in pairs(t) do o[k] = entr_rb_deep(v, seen) end
+    return o
+end
+
+-- Restore numeric leaves of `cur` from `snap` WITHOUT ever lowering a value below the
+-- snapshot (so a reset/scaling Joker can't be permanently reduced) while keeping any
+-- values that grew in the meantime. Only keys present in the snapshot are touched.
+local function entr_rb_restore(cur, snap)
+    if type(cur) ~= "table" or type(snap) ~= "table" then return end
+    for k, sv in pairs(snap) do
+        local cv = cur[k]
+        if entr_rb_is_num(sv) and entr_rb_is_num(cv) then
+            if entr_rb_gt(sv, cv) then cur[k] = sv end
+        elseif type(sv) == "table" and type(cv) == "table" then
+            entr_rb_restore(cv, sv)
+        end
+    end
+end
+
 ---@param chicken Card
 ---@param remove? boolean If true, unconditionally drop the current buff (the Chicken is leaving).
 function Entropy.rotisserie_reconcile(chicken, remove)
@@ -9719,19 +9754,31 @@ function Entropy.rotisserie_reconcile(chicken, remove)
         end
     end
 
-    -- Undo the buff on the previous target if it is no longer the target.
+    -- Undo the buff on the previous target. Rather than dividing (which loses value if the
+    -- target was reset/rescaled meanwhile), restore the numeric values captured at boost time.
+    -- Fall back to a divide only if no snapshot exists (e.g. a save made mid-buff).
     local prev = chicken.rotisserie_target
-    if prev and prev ~= target and prev.ability and prev.ability.already_big_and_fat then
-        if not prev.REMOVED then
-            Spectrallib.manipulate(prev, { value = 1 / temp })
+    if prev and prev ~= target then
+        if prev.ability and prev.ability.already_big_and_fat and not prev.REMOVED then
+            if chicken.rotisserie_snapshot then
+                if chicken.rotisserie_snapshot.ability then entr_rb_restore(prev.ability, chicken.rotisserie_snapshot.ability) end
+                if chicken.rotisserie_snapshot.base and prev.base then entr_rb_restore(prev.base, chicken.rotisserie_snapshot.base) end
+            else
+                Spectrallib.manipulate(prev, { value = 1 / temp })
+            end
         end
-        prev.ability.already_big_and_fat = nil
+        if prev.ability then prev.ability.already_big_and_fat = nil end
+        chicken.rotisserie_snapshot = nil
     end
 
-    -- Apply the buff to the new target if it isn't already buffed.
+    -- Apply the buff to the new target if it isn't already buffed, snapshotting its
+    -- pre-buff values first.
     if target and target.ability and not target.ability.already_big_and_fat then
+        local snap = { ability = entr_rb_deep(target.ability) }
+        if target.base then snap.base = entr_rb_deep(target.base) end
         if Spectrallib.manipulate(target, { value = temp }) then
             target.ability.already_big_and_fat = true
+            chicken.rotisserie_snapshot = snap
         end
     end
 
