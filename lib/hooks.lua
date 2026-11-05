@@ -83,6 +83,23 @@ end
 
 local set_spritesref = Card.set_sprites
 function Card:set_sprites(_center, _front)
+    -- Sanitise malformed global backs before the base set_sprites runs.
+    -- When a run is saved, STR_PACK replaces objects it cannot serialise (such as the Back
+    -- object stored in G.GAME.viewed_back) with the "MANUAL_REPLACE" sentinel *string*. On
+    -- load that string is never restored, so SMODS' base Card:set_sprites does
+    -- `(G.GAME.viewed_back or G.GAME.selected_back).effect.center...` on a string; indexing
+    -- an unknown field on a string yields nil, so it crashes with
+    -- "attempt to index field 'effect' (a nil value)" during save load.
+    if G.GAME then
+        local vb = G.GAME.viewed_back
+        if vb ~= nil and (type(vb) ~= 'table' or not vb.effect or not vb.effect.center) then
+            G.GAME.viewed_back = nil
+        end
+        local sb = G.GAME.selected_back
+        if sb ~= nil and (type(sb) ~= 'table' or not sb.effect or not sb.effect.center) then
+            G.GAME.selected_back = Back(G.P_CENTERS.b_red)
+        end
+    end
 	set_spritesref(self, _center, _front)
     if _center then
         if _center.tsoul_pos then
