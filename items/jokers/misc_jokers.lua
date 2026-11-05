@@ -10186,7 +10186,7 @@ Entropy.Joker{
                 message_colour = G.C.RED
             })
             if card.ability.extra.xmult <= 0 then
-                SMODS.destroy_card(card, nil, true)
+                SMODS.destroy_cards(card, nil, true)
                 return {
                     message = localize("k_eaten_ex")
                 }
