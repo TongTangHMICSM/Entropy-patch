@@ -419,10 +419,17 @@ G.FUNCS.can_cycle_apeirostemma = function(e)
 end
 G.FUNCS.cycle_apeirostemma = function(e)
     local c1 = e.config.ref_table
-    c1.ability.immutable.dice_effect = c1.ability.immutable.dice_effect + 1
-    if c1.ability.immutable.dice_effect > 6 then
-        c1.ability.immutable.dice_effect = 1
-    end
+    -- Apeirostemma was reworked to use `card.ability.sprite` (see set_ability / use /
+    -- the SMODS.DrawStep pos_map in entropic_jokers.lua) and no longer has the old
+    -- `ability.immutable.dice_effect` field. This handler was left pointing at that removed
+    -- field, so clicking "Cycle" dereferenced nil and crashed
+    -- ("attempt to index field 'immutable'"). Cycle the displayed dice sprite instead,
+    -- matching the 6-entry pos_map (wrapping 1..6).
+    if not (c1 and c1.ability) then return end
+    local max = 6
+    local cur = tonumber(c1.ability.sprite) or 0
+    c1.ability.sprite = (cur % max) + 1
+    c1.ability.pos = nil -- force the DrawStep to refresh the floating sprite next frame
 end
 
 G.FUNCS.can_buy_slot = function(e)
