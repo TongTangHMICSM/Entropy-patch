@@ -3792,3 +3792,27 @@ function SMODS.destroy_cards(c, ...)
     end
     return destroy_cards(c, ...)
 end
+
+-- Defensive guard for card tooltips.
+-- Some mods/tags push bare {key = ..., set = ...} entries onto info_queue instead of an actual
+-- center. Those entries have no `config`, so vanilla generate_card_ui's "fake ability" path does
+-- `local ability = copy_table(cfg)` with cfg == nil and then `ability.set = ...`, crashing with
+-- "attempt to index local 'ability' (a nil value)". Resolve such an entry to the real center when
+-- we can (so the tooltip renders correctly), otherwise swap in an empty config so it can never
+-- crash. Entries that already carry a config (real centers, or inline-config tooltips) are
+-- passed through untouched.
+local generate_card_ui_ref = generate_card_ui
+function generate_card_ui(center, full_UI_table, specific_vars, ...)
+    if type(center) == 'table' and center.config == nil then
+        if specific_vars == nil and center.specific_vars ~= nil then
+            specific_vars = center.specific_vars
+        end
+        local resolved = center.key and G.P_CENTERS and G.P_CENTERS[center.key]
+        if resolved then
+            center = resolved
+        else
+            center = setmetatable({ config = {} }, { __index = center })
+        end
+    end
+    return generate_card_ui_ref(center, full_UI_table, specific_vars, ...)
+end

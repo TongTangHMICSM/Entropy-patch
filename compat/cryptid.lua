@@ -552,11 +552,13 @@ if SMODS.Mods.Cryptid and SMODS.Mods.Cryptid.can_load then
         config = { type = "immediate" },
         in_pool = function() return false end or nil,
         loc_vars = function(self, info_queue,tag)
-            info_queue[#info_queue + 1] = {
-                set = "Joker",
-                key = "j_cavendish",
-                specific_vars = { 3, G.GAME.probabilities.normal or 1, 1000 },
-            }
+            -- Push the resolved center, NOT a raw {set = "Joker", key = "j_cavendish"} entry.
+            -- A raw entry has no `config`, so generate_card_ui's "fake ability" branch
+            -- (local ability = copy_table(cfg)) gets cfg == nil and crashes with
+            -- "attempt to index local 'ability' (a nil value)" when the tooltip is built.
+            if G.P_CENTERS.j_cavendish then
+                info_queue[#info_queue + 1] = G.P_CENTERS.j_cavendish
+            end
         end,
         apply = function(self, tag, context)
             if context.type == "immediate" then
