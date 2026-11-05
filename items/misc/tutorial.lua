@@ -20,35 +20,44 @@ G.FUNCS.entropy_tutorial_controller = function()
         pack = {{key = "p_entr_twisted_pack_normal", ante = 2, blind = "Small", pos = 1},{key = "p_celestial_normal_1", ante = 2, blind = "Small", pos = 2}},
     }
   }
+  local progress = G.SETTINGS.entropy_tutorial_progress
+
+  -- Build a part inside pcall so a bad highlight/attach can never leave the game permanently
+  -- paused, and so a single broken part can't trap the run in an error-loop softlock.
+  local function run_part(part)
+    local ok, err = pcall(G.FUNCS.entropy_tutorial_part, part)
+    G.SETTINGS.paused = false
+    if not ok then
+      print("[Entropy] tutorial error in part '"..tostring(part).."': "..tostring(err))
+      -- clean up anything the failed part left on screen before moving on
+      if G.OVERLAY_TUTORIAL then
+        if G.OVERLAY_TUTORIAL.Jimbo then G.OVERLAY_TUTORIAL.Jimbo:remove() end
+        if G.OVERLAY_TUTORIAL.content then G.OVERLAY_TUTORIAL.content:remove() end
+        G.OVERLAY_TUTORIAL:remove()
+        G.OVERLAY_TUTORIAL = nil
+      end
+      G.E_MANAGER:clear_queue('tutorial')
+    end
+    progress.completed_parts[part] = true
+    G:save_progress()
+  end
+
+  -- Don't advance while the game is intentionally paused (vanilla parity), and never start a
+  -- second part while another part's overlay is still up: every part shares the single global
+  -- G.OVERLAY_TUTORIAL, so two overlapping parts fight over it and softlock.
+  if G.SETTINGS.paused or G.OVERLAY_TUTORIAL then return end
+
   -- and then finally, the main meat of this controller is the one that manages which part of the tutorial you're in
   -- it generally goes in this format:
-  if G.STATE == G.STATES.SELECTING_HAND and not G.SETTINGS.entropy_tutorial_progress.completed_parts['intro'] then
-    G.FUNCS.entropy_tutorial_part('intro')
-    G.SETTINGS.entropy_tutorial_progress.completed_parts['intro']  = true
-    G:save_progress()
-  end
-  if G.STATE == G.STATES.SHOP and not G.SETTINGS.entropy_tutorial_progress.completed_parts['ascension_power'] then
-    G.FUNCS.entropy_tutorial_part('ascension_power')
-    G.SETTINGS.entropy_tutorial_progress.completed_parts['ascension_power']  = true
-    G:save_progress()
-  end
-  if G.STATE == G.STATES.SHOP and G.GAME.round_resets.ante == 2 and not G.SETTINGS.entropy_tutorial_progress.completed_parts['alt_path'] then
-    G.FUNCS.entropy_tutorial_part('alt_path')
-    G.SETTINGS.entropy_tutorial_progress.completed_parts['alt_path']  = true
-    G:save_progress()
-  end
-  if G.STATE == G.STATES.SHOP and G.GAME.round_resets.ante == 2 and G.GAME.round_resets.blind_states["Small"] == "Defeated" 
-    and not G.SETTINGS.entropy_tutorial_progress.completed_parts['packs']
-  then
-    G.FUNCS.entropy_tutorial_part('packs')
-    G.SETTINGS.entropy_tutorial_progress.completed_parts['packs'] = true
-    G:save_progress()
-	G.E_MANAGER:add_event(Event{
-		func = function()
-			G.F_SKIP_TUTORIAl = true
-			return true
-		end
-	})
+  -- NOTE: an if/elseif chain so that at most one part can begin per frame
+  if G.STATE == G.STATES.SELECTING_HAND and not progress.completed_parts['intro'] then
+    run_part('intro')
+  elseif G.STATE == G.STATES.SHOP and not progress.completed_parts['ascension_power'] then
+    run_part('ascension_power')
+  elseif G.STATE == G.STATES.SHOP and G.GAME.round_resets.ante == 2 and Entropy.can_switch_alt_path() and not progress.completed_parts['alt_path'] then
+    run_part('alt_path')
+  elseif G.STATE == G.STATES.SHOP and G.GAME.round_resets.ante == 2 and G.GAME.round_resets.blind_states["Small"] == "Defeated" and not progress.completed_parts['packs'] then
+    run_part('packs')
   end
 end
 
@@ -355,13 +364,16 @@ G.FUNCS.entropy_tutorial_part = function(_part)
         blockable = false,
         timer = 'REAL',
         func = function()
-            if G.OVERLAY_TUTORIAL and ((G.OVERLAY_TUTORIAL.step == step and
-            not G.OVERLAY_TUTORIAL.step_complete) or G.OVERLAY_TUTORIAL.skip_steps) then
+            if not G.OVERLAY_TUTORIAL then return true end
+            if (G.OVERLAY_TUTORIAL.step == step and
+            not G.OVERLAY_TUTORIAL.step_complete) or G.OVERLAY_TUTORIAL.skip_steps then
                 if G.OVERLAY_TUTORIAL.Jimbo then G.OVERLAY_TUTORIAL.Jimbo:remove() end
                 if G.OVERLAY_TUTORIAL.content then G.OVERLAY_TUTORIAL.content:remove() end
                 G.OVERLAY_TUTORIAL:remove()
                 G.OVERLAY_TUTORIAL = nil
-                G.SETTINGS.entropy_tutorial_progress.hold_parts[_part]=true
+                if G.SETTINGS.entropy_tutorial_progress then
+                    G.SETTINGS.entropy_tutorial_progress.hold_parts[_part]=true
+                end
                 return true
             end
             return G.OVERLAY_TUTORIAL.step > step or G.OVERLAY_TUTORIAL.skip_steps
@@ -456,12 +468,14 @@ function entropy_tutorial_info(args)
 end
 
 G.FUNCS.skip_entr_tutorial_section = function(e)
-    G.OVERLAY_TUTORIAL.skip_steps = true
-
-    if G.OVERLAY_TUTORIAL.Jimbo then G.OVERLAY_TUTORIAL.Jimbo:remove() end
-    if G.OVERLAY_TUTORIAL.content then G.OVERLAY_TUTORIAL.content:remove() end
-    G.OVERLAY_TUTORIAL:remove()
-    G.OVERLAY_TUTORIAL = nil
+    if G.OVERLAY_TUTORIAL then
+        G.OVERLAY_TUTORIAL.skip_steps = true
+        if G.OVERLAY_TUTORIAL.Jimbo then G.OVERLAY_TUTORIAL.Jimbo:remove() end
+        if G.OVERLAY_TUTORIAL.content then G.OVERLAY_TUTORIAL.content:remove() end
+        G.OVERLAY_TUTORIAL:remove()
+        G.OVERLAY_TUTORIAL = nil
+    end
+    G.SETTINGS.paused = false
 	G.F_SKIP_TUTORIAL = true
     G.E_MANAGER:clear_queue('tutorial')   
 end

@@ -82,20 +82,18 @@ if (not G.SETTINGS.entropy_tutorial_complete) and G.SETTINGS.entropy_tutorial_pr
 '''
 
 # TUTORIAL - forced booster
+# NOTE: the old pattern matched vanilla's one-line Card(...) call, which Cryptid/other
+# patches have since rewritten, so the patch silently failed ("resulted in no matches").
+# Anchor on the stable first line instead and inject the forced key right before it.
 [[patches]]
 [patches.pattern]
 target = 'game.lua'
 pattern = '''
 local card = Card(G.shop_booster.T.x + G.shop_booster.T.w/2,
-     G.shop_booster.T.y, G.CARD_W*1.27, G.CARD_H*1.27, G.P_CARDS.empty, G.P_CENTERS[G.GAME.current_round.used_packs[i]], {bypass_discovery_center = true, bypass_discovery_ui = true})
 '''
 match_indent = true
 position = 'at'
 payload = '''
-local cent = G.GAME.current_round.used_packs[i]
-if Entropy.get_forced_booster(i) then
-    cent = Entropy.get_forced_booster(i)
-end
+G.GAME.current_round.used_packs[i] = Entropy.get_forced_booster(i) or G.GAME.current_round.used_packs[i]
 local card = Card(G.shop_booster.T.x + G.shop_booster.T.w/2,
-     G.shop_booster.T.y, G.CARD_W*1.27, G.CARD_H*1.27, G.P_CARDS.empty, G.P_CENTERS[cent], {bypass_discovery_center = true, bypass_discovery_ui = true})
 '''
