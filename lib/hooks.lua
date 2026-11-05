@@ -543,6 +543,21 @@ function G.UIDEF.use_and_sell_buttons(card)
               }}
             }},
           }}
+        -- Apeirostemma is an activated Joker (can_use/use). This override used to return
+        -- only sell + a cosmetic "Cycle" button, which hid the standard Use button so the
+        -- Joker could never be activated. Build a Use button the same way Spectrallib's
+        -- extended card buttons (use_joker / can_use_joker) do.
+        card._entr_apei_use_key = localize('b_use')
+        usebutton = {n=G.UIT.C, config={align = "cr"}, nodes={
+            {n=G.UIT.C, config={ref_table = card, align = "cm", padding = 0.1, r=0.08, minw = 1.25, minh = 0.8, hover = true, shadow = true, colour = G.C.UI.BACKGROUND_INACTIVE, button = 'use_joker', func = 'can_use_joker', use_func = 'use', condition_func = 'can_use', use_key_key = '_entr_apei_use_key', use_key = 'b_use', button_colour = G.C.RED, handy_insta_action = 'use'}, nodes={
+              {n=G.UIT.B, config = {w=0.1,h=0.6}},
+              {n=G.UIT.C, config={align = "cm"}, nodes={
+                {n=G.UIT.R, config={align = "cm", maxw = 1.25}, nodes={
+                  {n=G.UIT.T, config={ref_table = card, ref_value = '_entr_apei_use_key', colour = G.C.UI.TEXT_LIGHT, scale = 0.55, shadow = true}}
+                }},
+              }},
+            }},
+          }}
         onoff = {n=G.UIT.C, config={align = "cr"}, nodes={
             {n=G.UIT.C, config={ref_table = card, align = "cr",padding = 0.1, r=0.08, minw = 1.25, hover = true, shadow = true, colour = G.C.UI.BACKGROUND_INACTIVE, button = 'cycle_apeirostemma', func = 'can_cycle_apeirostemma', handy_insta_action = 'use'}, nodes={
               {n=G.UIT.B, config = {w=0.1,h=0.3}},
@@ -558,6 +573,9 @@ function G.UIDEF.use_and_sell_buttons(card)
               {n=G.UIT.C, config={padding = 0, align = 'cl'}, nodes={
                 {n=G.UIT.R, config={align = 'cl'}, nodes={
                   sell
+                }},
+                {n=G.UIT.R, config={align = 'cl'}, nodes={
+                  usebutton
                 }},
                 {n=G.UIT.R, config={align = 'cl'}, nodes={
                   onoff
