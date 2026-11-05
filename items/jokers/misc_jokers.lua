@@ -9690,6 +9690,63 @@ Entropy.Joker{
     end
 }
 
+-- Rotisserie Chicken bookkeeping.
+-- The Chicken permanently multiplies the values of the Joker immediately to its right by
+-- `temp_values` (x1.5), and moves that buff when it or its neighbours move.
+-- All of that is funnelled through a single reconcile function so the applied/unapplied state
+-- can never desync. The old implementation set the `already_big_and_fat` flag before a
+-- *deferred* manipulation actually ran and swept/unbuffed unrelated cards on every removal,
+-- which could permanently reduce a Joker's values.
+function Entropy.rotisserie_is_chicken(card)
+    return card and card.config and card.config.center and card.config.center.key == "j_entr_rotisserie_chicken"
+end
+
+---@param chicken Card
+---@param remove? boolean If true, unconditionally drop the current buff (the Chicken is leaving).
+function Entropy.rotisserie_reconcile(chicken, remove)
+    if not (chicken and chicken.ability and chicken.ability.extra) then return end
+    local temp = chicken.ability.extra.temp_values or 1.5
+    local area = chicken.area
+
+    -- Identify the Joker immediately to the right of this Chicken (if any).
+    local target = nil
+    if not remove and area and area.cards then
+        local pos = nil
+        for i, v in pairs(area.cards) do if v == chicken then pos = i; break end end
+        if pos then
+            local nx = area.cards[pos + 1]
+            if nx and nx ~= chicken then target = nx end
+        end
+    end
+
+    -- Undo the buff on the previous target if it is no longer the target.
+    local prev = chicken.rotisserie_target
+    if prev and prev ~= target and prev.ability and prev.ability.already_big_and_fat then
+        if not prev.REMOVED then
+            Spectrallib.manipulate(prev, { value = 1 / temp })
+        end
+        prev.ability.already_big_and_fat = nil
+    end
+
+    -- Apply the buff to the new target if it isn't already buffed.
+    if target and target.ability and not target.ability.already_big_and_fat then
+        if Spectrallib.manipulate(target, { value = temp }) then
+            target.ability.already_big_and_fat = true
+        end
+    end
+
+    chicken.rotisserie_target = target
+end
+
+function Entropy.rotisserie_reconcile_all()
+    if not (G.jokers and G.jokers.cards) then return end
+    for _, c in ipairs(G.jokers.cards) do
+        if Entropy.rotisserie_is_chicken(c) then
+            Entropy.rotisserie_reconcile(c)
+        end
+    end
+end
+
 Entropy.Joker{
     order = 162,
     key = "rotisserie_chicken",
@@ -9718,49 +9775,8 @@ Entropy.Joker{
             }
         }
     end,
-    calculate = function(self, card, context)
-        if context.card_rearranged then
-            if context.old_order[card.last_pos+1] and context.old_order[card.last_pos+1].ability.already_big_and_fat then
-                Spectrallib.manipulate(context.old_order[card.last_pos+1], {
-                    value = 1/card.ability.extra.temp_values
-                })
-                context.old_order[card.last_pos+1].ability.already_big_and_fat = nil
-            end
-            local new_pos = context.card == card and context.new_pos or card.last_pos
-            if card.area.cards[new_pos+1] and not card.area.cards[new_pos+1].ability.already_big_and_fat then
-                G.E_MANAGER:add_event(Event{
-                    func = function()
-                        Spectrallib.manipulate(card.area.cards[new_pos+1], {
-                            value = card.ability.extra.temp_values
-                        })
-                        return true
-                    end
-                })
-                card.area.cards[new_pos+1].ability.already_big_and_fat = true
-            end
-            return nil, true
-        end
-        if context.card_emplaced then
-            local pos = 0
-            for i, v in pairs(card.area.cards) do if v == card then pos = i end end
-            if card.area.cards[pos+1] ~= card and card.area.cards[pos+1] and not card.area.cards[pos+1].ability.already_big_and_fat then
-                Spectrallib.manipulate(card.area.cards[pos+1], {
-                    value = card.ability.extra.temp_values
-                })
-                card.area.cards[pos+1].ability.already_big_and_fat = true
-            end
-        end
-        if context.being_removed then
-            local pos = 0
-            for i, v in pairs(card.area.cards) do if v == card then pos = i end end
-            if card.area.cards[pos+1] ~= card and card.area.cards[pos+1] and card.area.cards[pos+1].ability.already_big_and_fat then
-                Spectrallib.manipulate(card.area.cards[pos+1], {
-                    value = 1/card.ability.extra.temp_values
-                })
-                card.area.cards[pos+1].ability.already_big_and_fat = nil
-            end
-        end
-    end
+    -- Buffing is driven entirely by the CardArea hooks below (align_cards / emplace /
+    -- remove_card), which call Entropy.rotisserie_reconcile_all.
 }
 
 local ac = CardArea.align_cards
@@ -9777,6 +9793,7 @@ function CardArea:align_cards(...)
                 SMODS.calculate_context{card_rearranged = true, old_pos = v.last_pos, new_pos = i, card = v, old_order = order}
             end
         end
+        if self == G.jokers then Entropy.rotisserie_reconcile_all() end
     end
 end
 
@@ -9789,29 +9806,25 @@ function CardArea:emplace(card, ...)
     emplace(self, card, ...)
     if G.jokers then
         SMODS.calculate_context{card_emplaced = true, old_order = order, card = card}
+        if self == G.jokers then Entropy.rotisserie_reconcile_all() end
     end
 end
 
 local sd = CardArea.remove_card
 function CardArea:remove_card(card, ...)
-    if G.jokers and card and card.config and card.config.center and card.config.center.calculate then
-        card.config.center:calculate(card, {being_removed = true, card = card})
+    -- A leaving Chicken must give its buff back before it is gone.
+    if Entropy.rotisserie_is_chicken(card) then
+        Entropy.rotisserie_reconcile(card, true)
     end
     local ret = sd(self, card, ...)
     if G.jokers then
         G.E_MANAGER:add_event(Event{
             trigger = "after",
             func = function()
-                for i, v in pairs(self.cards or {}) do
-                    if v.ability.already_big_and_fat then
-                        local prev_extra = self.cards[i-1] and self.cards[i-1].ability.extra
-                        Spectrallib.manipulate(v, {
-                            value = 1/((type(prev_extra) == "table" and prev_extra.temp_values) or 1.5)
-                        })
-                        v.ability.already_big_and_fat = nil
-                    end
-                end
-                SMODS.calculate_context{card_emplaced = true, old_order = order, card = card}
+                -- Re-derive every Chicken's buff from the settled layout. This re-targets a
+                -- Chicken whose right-hand Joker was removed, instead of blanket-unbuffing
+                -- every flagged card (which could permanently reduce unrelated Jokers).
+                Entropy.rotisserie_reconcile_all()
                 return true
             end
         })
