@@ -128,11 +128,11 @@ vec4 effect( vec4 colour, Image texture, vec2 texture_coords, vec2 screen_coords
 
 
     float sprite_width = texture_details.z / image_details.x;
-	float sprite_height = texture_details.z / image_details.y;
+	float sprite_height = texture_details.w / image_details.y;
     float min_x = texture_details.x * sprite_width;
     float max_x = (texture_details.x + 1.) * sprite_width;
-	float min_y = texture_details.y * sprite_width;
-    float max_y = (texture_details.y + 1.) * sprite_width;
+	float min_y = texture_details.y * sprite_height;
+    float max_y = (texture_details.y + 1.) * sprite_height;
 
     float tilt_normalized = fractured.x;
 
@@ -217,8 +217,11 @@ vec4 effect( vec4 colour, Image texture, vec2 texture_coords, vec2 screen_coords
 	hsl.y += 0.33;
 	hsl.z *= 1.2;
 
-	float tempV = 0.25 + pow(2.0, qalph)/(1.0 + 2.0 * pow(2.0, qalph));
-	qalph = 6.0 * pow(tempV - 0.25, 3.0);
+	// This value is multiplied into the sampled sprite alpha, so it decides whether the card
+	// is visible at all. The old `6.0 * pow(tempV - 0.25, 3.0)` only ever reached ~0.22-0.55,
+	// which is why the Joker looked invisible with nothing but the shader left on top. Match
+	// solar.fs and keep the card near-opaque, letting the fracture distance add the variation.
+	qalph = 0.7 + 0.3 * clamp(qalph, 0.0, 1.0);
 
     tex.rgb = RGB(hsl).rgb;
 
