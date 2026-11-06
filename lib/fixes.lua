@@ -359,9 +359,18 @@ end
 -- No Entropy pack declares one, so hovering an inverted consumable showed a lone Use button
 -- and there was no way to take it instead.
 --
--- Providing the default here gives every consumable in an open pack a Select button next to
--- its Use button ("can_also_use"), without having to declare select_card on every pack and
--- every ConsumableType.
+-- Providing the default here gives every Entropy consumable in an open pack a Select button
+-- next to its Use button ("can_also_use"), without having to declare select_card on every pack
+-- and every ConsumableType.
+--
+-- It is deliberately limited to Entropy's own centers: other mods own this decision (Cryptid's
+-- "Code" ConsumableType sets select_card = "consumeables" with a single Pull button, no
+-- can_also_use), and overriding SMODS' answer for them broke their pack selection.
+local function entr_is_entropy_center(center)
+    local mod = center and (center.mod or center.original_mod)
+    return mod ~= nil and mod.id == "entr"
+end
+
 local entr_card_select_area_ref = SMODS.card_select_area
 if type(entr_card_select_area_ref) == "function" then
     function SMODS.card_select_area(card, pack)
@@ -370,6 +379,7 @@ if type(entr_card_select_area_ref) == "function" then
         if not (card and card.ability and card.ability.consumeable) then return area, can_also_use end
         if not (G.pack_cards and card.area == G.pack_cards) then return area, can_also_use end
         if card.config.center.hidden or card.config.center.no_select then return area, can_also_use end
+        if not entr_is_entropy_center(card.config.center) then return area, can_also_use end
         -- "consumeables" is the area Card:selectable_from_pack expects; true keeps the Use button.
         return "consumeables", true
     end

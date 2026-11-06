@@ -1173,9 +1173,9 @@ Entropy.Consumable{
     pos = {x=1,y=5},
     use = function(self, card, area, copier)
         local code = Entropy.get_highlighted_cards({G.hand, G.jokers, G.consumeables}, card, 1, 1)[1]
-        code:add_Sticker("entr_hotfix", true)
+        if code then code:add_sticker("entr_hotfix", true) end
         local card = Entropy.get_highlighted_cards({G.hand, G.jokers, G.consumeables}, card, 1, 1)[1]
-        card:juice_up()
+        if card then card:juice_up() end
 
     end,
     can_use = function(self, card)
