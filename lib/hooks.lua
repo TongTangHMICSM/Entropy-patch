@@ -3892,3 +3892,42 @@ function generate_card_ui(center, full_UI_table, specific_vars, ...)
     end
     return generate_card_ui_ref(center, full_UI_table, specific_vars, ...)
 end
+
+-- ---------------------------------------------------------------------------
+-- Sound volume sanitisation
+-- ---------------------------------------------------------------------------
+-- play_sound pushes { per = ..., vol = ... } to the audio thread. If a BigNumber (or any table)
+-- ends up in `vol`, the thread dies in SET_SFX:
+--   engine/sound_manager.lua:101 attempt to perform arithmetic on field 'original_volume'
+-- which takes the whole game down, and the crash report only shows the audio thread so it is
+-- impossible to tell which mod passed the value. Coerce both numbers here, at the single place
+-- they are handed to the thread, so a stray to_big() can never kill the run again.
+local entr_play_sound_ref = play_sound
+local entr_sound_warned = {}
+
+local function entr_sound_number(v)
+    if type(v) == "number" then return v end
+    if v == nil then return nil end
+    local ok, n = pcall(function() return to_number and to_number(v) end)
+    if ok and type(n) == "number" and n == n then return n end
+    return nil
+end
+
+function play_sound(sound_code, per, vol, ...)
+    local safe_per, safe_vol = per, vol
+    if per ~= nil and type(per) ~= "number" then
+        safe_per = entr_sound_number(per)
+        if not entr_sound_warned[per] then
+            entr_sound_warned[per] = true
+            print("[Entropy] play_sound pitch was a " .. type(per) .. " (" .. tostring(sound_code) .. "), using " .. tostring(safe_per))
+        end
+    end
+    if vol ~= nil and type(vol) ~= "number" then
+        safe_vol = entr_sound_number(vol)
+        if not entr_sound_warned[vol] then
+            entr_sound_warned[vol] = true
+            print("[Entropy] play_sound volume was a " .. type(vol) .. " (" .. tostring(sound_code) .. "), using " .. tostring(safe_vol))
+        end
+    end
+    return entr_play_sound_ref(sound_code, safe_per, safe_vol, ...)
+end
