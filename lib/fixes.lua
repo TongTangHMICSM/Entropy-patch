@@ -218,3 +218,132 @@ function SMODS.get_card_areas(...)
   end
   return ret
 end
+
+-- ---------------------------------------------------------------------------
+-- Ghost / empty hand cards
+-- ---------------------------------------------------------------------------
+-- A card that is in G.hand.cards (so it eats a slot and counts toward hand size) but is
+-- neither drawn nor clickable. It comes from an interrupted spawn: the `_card.states.visible
+-- = nil` + deferred `_card:start_materialize()` pattern loses its event when the queue is
+-- flushed by a state change, or `start_materialize` runs but its trailing restore event is
+-- dropped, which leaves `states.hover.can = false` on a visible-but-dead card.
+--
+-- A card is only healed after it has stayed stuck for several consecutive checks, so a card
+-- that is legitimately mid-materialize is never touched.
+local entr_ghost_ticks = setmetatable({}, { __mode = "k" })
+-- Polled every 0.25s from Game:update, so ~2s of being stuck. A full start_materialize
+-- sequence settles in well under that, so an in-flight card is never touched.
+local ENTR_GHOST_TICKS_NEEDED = 8
+
+local function entr_card_is_ghost(c)
+    if not c or not c.states then return false end
+    if c.removed or c.dissolved or c.getting_sliced then return false end
+    -- no sprite to draw at all (center is a missing/unloaded key)
+    if not c.children or not c.children.center then return true end
+    -- never drawn at all (still counts against the hand limit)
+    if c.states.visible ~= true then return true end
+    -- start_materialize set dissolve = 1 and its ease-back event was lost
+    if (tonumber(c.dissolve) or 0) > 0.98 then return true end
+    -- visible but unhoverable/unclickable
+    if c.states.hover and c.states.hover.can == false then return true end
+    if c.states.collide and c.states.collide.can == false then return true end
+    return false
+end
+
+local function entr_repair_card(c)
+    c.states.visible = true
+    for _, key in ipairs({ "hover", "collide", "click", "drag", "focus" }) do
+        c.states[key] = c.states[key] or {}
+        c.states[key].can = true
+    end
+    c.dissolve = 0
+    c.getting_sliced = nil
+    -- A card loaded with an unknown center never built a sprite, so it could never be drawn.
+    -- Rebuild it, falling back to a plain card front so the slot is at least visible/usable.
+    if not c.children or not c.children.center then
+        local ok = pcall(function() c:set_sprites(c.config.center, c.config.card) end)
+        if not ok or not c.children.center then
+            pcall(function()
+                c.config.center = G.P_CENTERS.c_base
+                c.config.center_key = "c_base"
+                c:set_sprites(G.P_CENTERS.c_base, c.config.card or G.P_CARDS["S_2"])
+            end)
+        end
+    end
+end
+
+---Heals hand cards left in an unusable state (invisible and/or unclickable) and drops
+---duplicate/missing entries that also inflate the perceived hand size.
+---@return boolean dirty Whether anything was changed.
+function Entropy.repair_hand_cards()
+    if not (G.hand and G.hand.cards) then return false end
+    local seen, dirty = {}, false
+    for i = #G.hand.cards, 1, -1 do
+        local c = G.hand.cards[i]
+        if not c then
+            table.remove(G.hand.cards, i)
+            dirty = true
+        elseif seen[c] then
+            -- the same card object listed twice: only one of them is ever drawn
+            table.remove(G.hand.cards, i)
+            dirty = true
+        else
+            seen[c] = true
+            if entr_card_is_ghost(c) then
+                entr_ghost_ticks[c] = (entr_ghost_ticks[c] or 0) + 1
+                if entr_ghost_ticks[c] >= ENTR_GHOST_TICKS_NEEDED then
+                    entr_ghost_ticks[c] = nil
+                    entr_repair_card(c)
+                    dirty = true
+                end
+            else
+                entr_ghost_ticks[c] = nil
+            end
+        end
+    end
+    if dirty then
+        G.hand:align_cards()
+        -- a repaired hand can leave the highlight/selection out of sync
+        if G.STATE == G.STATES.SELECTING_HAND then
+            for j = #G.hand.highlighted, 1, -1 do
+                local c = G.hand.highlighted[j]
+                if not c or c.removed or c.area ~= G.hand then
+                    table.remove(G.hand.highlighted, j)
+                end
+            end
+            G.hand:parse_highlighted()
+        end
+    end
+    return dirty
+end
+
+---Drops cards that are still listed in G.hand.cards but already belong to another area
+---(a mod moved them without removing them from the hand), which otherwise leave dead slots
+---behind. Only pruned when the card is confirmed to be in that other area's list, so a card
+---mid-transition is never dropped.
+function Entropy.prune_orphan_hand_cards()
+    if not (G.hand and G.hand.cards) then return false end
+    local dirty = false
+    for i = #G.hand.cards, 1, -1 do
+        local c = G.hand.cards[i]
+        if c and not c.area then
+            -- listed in the hand but its area was never (or wrongly) assigned: it will not
+            -- render or receive input. Re-attach it rather than dropping the card.
+            pcall(function() c:set_card_area(G.hand) end)
+            c.area = c.area or G.hand
+            dirty = true
+        end
+        local other = c and c.area
+        if other and other ~= G.hand and other.cards then
+            for _, v in ipairs(other.cards) do
+                if v == c then
+                    table.remove(G.hand.cards, i)
+                    dirty = true
+                    break
+                end
+            end
+        end
+    end
+    if dirty then G.hand:align_cards() end
+    return dirty
+end

@@ -2082,9 +2082,21 @@ local upd = Game.update
 local ee2dt = 0
 local cdt = 0
 local entr_orphan_play_ticks = 0
+local entr_ghostscan_dt = 0
 function Game:update(dt)
 	upd(self, dt)
 	cdt = cdt + dt
+	-- Cards that never finished materializing stay in the hand consuming a slot while being
+	-- invisible and/or unclickable. Poll a few times a second so the strike counter can tell
+	-- a real ghost apart from a card that is simply mid-animation.
+	entr_ghostscan_dt = entr_ghostscan_dt + dt
+	if entr_ghostscan_dt > 0.25 then
+		entr_ghostscan_dt = 0
+		if G.STATES and G.STATE == G.STATES.SELECTING_HAND and G.hand and G.hand.cards then
+			Entropy.prune_orphan_hand_cards()
+			Entropy.repair_hand_cards()
+		end
+	end
 	if cdt > 0.01 then
 		-- A play that never resolved leaves its cards stranded in G.play: the hand is still
 		-- selectable but Play counts no highlighted hand cards, so the run softlocks. Wait
