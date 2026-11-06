@@ -258,62 +258,71 @@ function Entropy.edition_tag(edition, key, ascendant, pos,order, credits)
         config = { type = "store_joker_modify" },
         in_pool = ascendant and function() return false end or nil,
         apply = function(self, tag, context)
-            if context.type == "store_joker_modify" then
-                local any_to_edition
-                for i, v in pairs(G.shop_jokers.cards) do
-                    if not v.will_be_editioned then
-                        any_to_edition = true
-                        v.will_be_editioned = true
-                    end
+            if context.type ~= "store_joker_modify" then return end
+
+            -- store_joker_modify is fired once per card the shop creates, and it is ALSO fired
+            -- for cards that another tag just created (store_joker_create -> store_joker_modify
+            -- in Cryptid/SMODS). In both cases the card is not guaranteed to be inside the shop
+            -- areas yet, so scanning only G.shop_jokers/booster/vouchers could find nothing.
+            -- The old code then still set tag.triggered, consuming the tag without any effect.
+            local targets, seen = {}, {}
+            local function consider(c)
+                if c and not seen[c] and not c.edition and not c.will_be_editioned then
+                    seen[c] = true
+                    targets[#targets + 1] = c
                 end
-                for i, v in pairs(G.shop_booster.cards) do
-                    if not v.will_be_editioned then
-                        any_to_edition = true
-                        v.will_be_editioned = true
-                    end
-                end
-                for i, v in pairs(G.shop_vouchers.cards) do
-                    if not v.will_be_editioned then
-                        any_to_edition = true
-                        v.will_be_editioned = true
-                    end
-                end
-                if any_to_edition then
-                    tag:yep("+", G.C.RARITY[colour], function()
-                        for i, v in pairs(G.shop_jokers.cards) do
-                            if not v.edition then
-                                v:set_edition(edition)
-                            end
-                        end
-                        for i, v in pairs(G.shop_booster.cards) do
-                            if not v.edition then
-                                v:set_edition(edition)
-                            end
-                        end
-                        for i, v in pairs(G.shop_vouchers.cards) do
-                            if not v.edition then
-                                v:set_edition(edition)
-                            end
-                        end
-                        return true
-                    end)
-                end
-                G.E_MANAGER:add_event(Event{
-                    func = function()
-                        for i, v in pairs(G.shop_jokers.cards) do
-                            v.will_be_editioned = nil
-                        end
-                        for i, v in pairs(G.shop_booster.cards) do
-                            v.will_be_editioned = nil
-                        end
-                        for i, v in pairs(G.shop_vouchers.cards) do
-                            v.will_be_editioned = nil
-                        end
-                        return true
-                    end
-                })
-                tag.triggered = true
             end
+            local function consider_shop_items()
+                -- Indirected through G so a missing area can't punch a hole in an ipairs list.
+                for _, area_key in ipairs({ "shop_jokers", "shop_booster", "shop_vouchers" }) do
+                    local area = G[area_key]
+                    for _, v in ipairs((area and area.cards) or {}) do
+                        consider(v)
+                    end
+                end
+            end
+            consider(context.card)
+            consider_shop_items()
+
+            -- Nothing to edition yet: leave the tag untriggered so a later
+            -- store_joker_modify (or the next shop) can still use it.
+            if #targets == 0 then return end
+
+            for _, c in ipairs(targets) do
+                c.will_be_editioned = true
+            end
+
+            tag:yep("+", G.C.DARK_EDITION, function()
+                local function edition_one(c)
+                    if c and not c.removed and not c.edition then
+                        c:set_edition(edition)
+                    end
+                end
+                -- The cards that were marked, plus anything the shop added while the yep was
+                -- playing, so "All shop items" really does mean all of them.
+                for _, c in ipairs(targets) do edition_one(c) end
+                for _, area_key in ipairs({ "shop_jokers", "shop_booster", "shop_vouchers" }) do
+                    local area = G[area_key]
+                    for _, v in ipairs((area and area.cards) or {}) do edition_one(v) end
+                end
+                return true
+            end)
+            tag.triggered = true
+
+            G.E_MANAGER:add_event(Event{
+                func = function()
+                    for _, c in ipairs(targets) do
+                        if c then c.will_be_editioned = nil end
+                    end
+                    for _, area_key in ipairs({ "shop_jokers", "shop_booster", "shop_vouchers" }) do
+                        local area = G[area_key]
+                        for _, v in ipairs((area and area.cards) or {}) do
+                            v.will_be_editioned = nil
+                        end
+                    end
+                    return true
+                end
+            })
         end,
         loc_vars = function(s,q,c)
             q[#q+1] = edition and G.P_CENTERS[edition] or nil
