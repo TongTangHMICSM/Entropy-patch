@@ -22,11 +22,14 @@ if card.config.center.set == "Joker" and G.jokers and card.config.center.use the
       func = 'can_use_joker', button = 'use_joker', card_width = card_width
     }
 end
-if card.area == G.pack_cards and Entropy.needs_pull_button(card) then
+-- NOTE: consumables in a pack already get a Use + Select pair from SMODS (booster.toml),
+-- keyed off SMODS.card_select_area. Overwriting children.use here replaced the Use button
+-- with another select/reserve button, so it only applies to non-consumables now.
+if card.area == G.pack_cards and not card.ability.consumeable and Spectrallib.needs_pull_button(card) then
     base_attach.children.use = G.UIDEF.card_focus_button{
       card = card, parent = base_attach, type = 'select',
       func = card:is_playing_card() and "can_reserve_card_to_deck" or "can_reserve_card", button = 'use_card', 
-      card_width = card_width, text = Entropy.needs_pull_button(card)
+      card_width = card_width, text = Spectrallib.needs_pull_button(card)
     }
 end
 '''

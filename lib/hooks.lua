@@ -1021,6 +1021,15 @@ end
 
 -- Diagnostic: a payload with no pool source can never produce a card. Lua tail calls erase the
 -- caller's stack frame, so name the payload's fields instead to identify the booster.
+local function entr_pack_name()
+    local b = SMODS.OPENED_BOOSTER
+    if b and b.config and b.config.center then
+        local c = b.config.center
+        return tostring(c.key or c.name)
+    end
+    return "none"
+end
+
 local scc_ref = SMODS.create_card
 function SMODS.create_card(t, ...)
     if type(t) == "table" and not t.ability and not t.config and not t.key and not t.set
@@ -1033,7 +1042,8 @@ function SMODS.create_card(t, ...)
             hand = G.hand, title_top = G.title_top, consumeables = G.consumeables }) do
             if area and area == t.area then aname = name end
         end
-        print("[Entropy] create_card payload without key/set: {" .. table.concat(keys, ", ") .. "} area=" .. aname)
+        print("[Entropy] create_card payload without key/set: {" .. table.concat(keys, ", ")
+            .. "} area=" .. aname .. " booster=" .. entr_pack_name())
     end
     return scc_ref(t, ...)
 end
@@ -1052,7 +1062,8 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
     -- A booster can hand back a payload with neither set nor key; the pool code then dies in
     -- SMODS.poll_object. Roll a Joker instead of taking the run down with it.
     if not _type and not forced_key then
-        print("[Entropy] create_card: no type and no forced key, rolling a Joker")
+        print("[Entropy] create_card: no type and no forced key, rolling a Joker (booster="
+            .. entr_pack_name() .. ", area=" .. tostring(area == G.pack_cards and "pack_cards" or area) .. ")")
         print(debug.traceback("", 2))
         _type = "Joker"
     end

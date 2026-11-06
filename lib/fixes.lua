@@ -347,3 +347,30 @@ function Entropy.prune_orphan_hand_cards()
     if dirty then G.hand:align_cards() end
     return dirty
 end
+
+-- ---------------------------------------------------------------------------
+-- Select button for consumables inside a booster pack
+-- ---------------------------------------------------------------------------
+-- There are two separate button UIs on a pack card:
+--   * hovering -> G.UIDEF.card_focus_ui  (SMODS patches it in lovely/booster.toml)
+--   * clicking -> Card:highlight -> children.use_button -> G.UIDEF.use_and_sell_buttons
+-- Both of SMODS' patches only offer a Select button when SMODS.card_select_area returns an
+-- area, which in turn requires the center / ConsumableType / pack to declare `select_card`.
+-- No Entropy pack declares one, so hovering an inverted consumable showed a lone Use button
+-- and there was no way to take it instead.
+--
+-- Providing the default here gives every consumable in an open pack a Select button next to
+-- its Use button ("can_also_use"), without having to declare select_card on every pack and
+-- every ConsumableType.
+local entr_card_select_area_ref = SMODS.card_select_area
+if type(entr_card_select_area_ref) == "function" then
+    function SMODS.card_select_area(card, pack)
+        local area, can_also_use = entr_card_select_area_ref(card, pack)
+        if area then return area, can_also_use end
+        if not (card and card.ability and card.ability.consumeable) then return area, can_also_use end
+        if not (G.pack_cards and card.area == G.pack_cards) then return area, can_also_use end
+        if card.config.center.hidden or card.config.center.no_select then return area, can_also_use end
+        -- "consumeables" is the area Card:selectable_from_pack expects; true keeps the Use button.
+        return "consumeables", true
+    end
+end
