@@ -3556,7 +3556,11 @@ local forcetrigger_ref = Spectrallib.forcetrigger
 function Spectrallib.forcetrigger(args, ...)
     local card = args.card
     if not card then return end
-    if card.ability and card.ability.consumeable then
+    -- If this card is already mid-force-trigger (e.g. Swonkssac force-triggering itself when it
+    -- is the rightmost Joker), Spectrallib.forcetrigger will bail out for recursion. Skip the
+    -- pre_using_self pass too so it does not run twice for the same trigger.
+    local active = Spectrallib.forcetrigger_active
+    if not (active and active[card]) and card.ability and card.ability.consumeable then
         local center = card.config.center
         if center and center.calculate then
             center:calculate(card, {pre_using_self = true, consumeable = card, area = card.from_area})
