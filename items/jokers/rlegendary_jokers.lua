@@ -550,19 +550,25 @@ Entropy.Joker{
     calculate = function(self, card, context)
         if context.joker_main  then
             for i = 1, math.min(math.ceil(Entropy.missing_ranks() / 2), (context.blueprint or context.repetition) and 1 or 99999) do
-                Spectrallib.forcetrigger({
-                    card = G.jokers.cards[#G.jokers.cards],
-                    context = context,
-                    colour = Entropy.reverse_legendary_gradient,
-                    message_card = card
-                })
-                Spectrallib.forcetrigger({
-                    card = G.consumeables.cards[#G.consumeables.cards],
-                    context = context,
-                    colour = Entropy.reverse_legendary_gradient,
-                    message_card = card
-                })
-                local v = G.play.cards[#G.play.cards]
+                local joker_card = G.jokers.cards and G.jokers.cards[#G.jokers.cards]
+                if joker_card then
+                    Spectrallib.forcetrigger({
+                        card = joker_card,
+                        context = context,
+                        colour = Entropy.reverse_legendary_gradient,
+                        message_card = card
+                    })
+                end
+                local cons_card = G.consumeables.cards and G.consumeables.cards[#G.consumeables.cards]
+                if cons_card then
+                    Spectrallib.forcetrigger({
+                        card = cons_card,
+                        context = context,
+                        colour = Entropy.reverse_legendary_gradient,
+                        message_card = card
+                    })
+                end
+                local v = G.play.cards and G.play.cards[#G.play.cards]
                 if G.play.cards and v then
                     local results = eval_card(v, {cardarea=G.play,main_scoring=true, forcetrigger=true, individual=true, scoring_hand=G.play.cards}) or {}
                     if results then
@@ -580,12 +586,6 @@ Entropy.Joker{
                             end
                         end
                     end
-                end
-                for i, v in pairs(j_r or {}) do
-                    SMODS.calculate_individual_effect(j_r, card, i, v, false)
-                end
-                for i, v in pairs(c_r) do
-                    SMODS.calculate_individual_effect(j_r, card, i, v, false)
                 end
             end
         end

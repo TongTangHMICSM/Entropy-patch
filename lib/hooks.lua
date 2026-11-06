@@ -3532,7 +3532,8 @@ end
 local forcetrigger_ref = Spectrallib.forcetrigger
 function Spectrallib.forcetrigger(args, ...)
     local card = args.card
-    if card.ability.consumeable then
+    if not card then return end
+    if card.ability and card.ability.consumeable then
         local center = card.config.center
         if center and center.calculate then
             center:calculate(card, {pre_using_self = true, consumeable = card, area = card.from_area})
