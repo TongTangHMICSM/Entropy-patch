@@ -9691,49 +9691,15 @@ Entropy.Joker{
 }
 
 -- Rotisserie Chicken bookkeeping.
--- The Chicken permanently multiplies the values of the Joker immediately to its right by
+-- The Chicken temporarily multiplies the values of the Joker immediately to its right by
 -- `temp_values` (x1.5), and moves that buff when it or its neighbours move.
 -- All of that is funnelled through a single reconcile function so the applied/unapplied state
--- can never desync. The old implementation set the `already_big_and_fat` flag before a
--- *deferred* manipulation actually ran and swept/unbuffed unrelated cards on every removal,
--- which could permanently reduce a Joker's values.
+-- can never desync. The buff is applied by multiplying with `temp_values` and removed by
+-- dividing by the exact same factor, so they are true inverses and the value can never
+-- accumulate (the previous snapshot/"only ever raise" restore failed to actually remove the
+-- buff, which let the multiplier stack up and grow without bound).
 function Entropy.rotisserie_is_chicken(card)
     return card and card.config and card.config.center and card.config.center.key == "j_entr_rotisserie_chicken"
-end
-
-local function entr_rb_is_num(v)
-    return (Spectrallib.is_number and Spectrallib.is_number(v)) or type(v) == "number"
-end
-
-local function entr_rb_gt(a, b)
-    if type(a) == "number" and type(b) == "number" then return a > b end
-    return to_big(a) > to_big(b)
-end
-
--- Cycle-safe deep copy of a card's value tables for snapshotting.
-local function entr_rb_deep(t, seen)
-    if type(t) ~= "table" then return t end
-    seen = seen or {}
-    if seen[t] then return seen[t] end
-    local o = {}
-    seen[t] = o
-    for k, v in pairs(t) do o[k] = entr_rb_deep(v, seen) end
-    return o
-end
-
--- Restore numeric leaves of `cur` from `snap` WITHOUT ever lowering a value below the
--- snapshot (so a reset/scaling Joker can't be permanently reduced) while keeping any
--- values that grew in the meantime. Only keys present in the snapshot are touched.
-local function entr_rb_restore(cur, snap)
-    if type(cur) ~= "table" or type(snap) ~= "table" then return end
-    for k, sv in pairs(snap) do
-        local cv = cur[k]
-        if entr_rb_is_num(sv) and entr_rb_is_num(cv) then
-            if entr_rb_gt(sv, cv) then cur[k] = sv end
-        elseif type(sv) == "table" and type(cv) == "table" then
-            entr_rb_restore(cv, sv)
-        end
-    end
 end
 
 ---@param chicken Card
@@ -9754,31 +9720,21 @@ function Entropy.rotisserie_reconcile(chicken, remove)
         end
     end
 
-    -- Undo the buff on the previous target. Rather than dividing (which loses value if the
-    -- target was reset/rescaled meanwhile), restore the numeric values captured at boost time.
-    -- Fall back to a divide only if no snapshot exists (e.g. a save made mid-buff).
+    -- Undo the buff on the previous target by dividing out the exact factor that was applied.
+    -- This is the true inverse of the apply step below, so repeatedly re-targeting the same
+    -- Joker is a no-op net of the multiply/divide, and any scaling it did while buffed is kept.
     local prev = chicken.rotisserie_target
     if prev and prev ~= target then
         if prev.ability and prev.ability.already_big_and_fat and not prev.REMOVED then
-            if chicken.rotisserie_snapshot then
-                if chicken.rotisserie_snapshot.ability then entr_rb_restore(prev.ability, chicken.rotisserie_snapshot.ability) end
-                if chicken.rotisserie_snapshot.base and prev.base then entr_rb_restore(prev.base, chicken.rotisserie_snapshot.base) end
-            else
-                Spectrallib.manipulate(prev, { value = 1 / temp })
-            end
+            Spectrallib.manipulate(prev, { value = 1 / temp })
         end
         if prev.ability then prev.ability.already_big_and_fat = nil end
-        chicken.rotisserie_snapshot = nil
     end
 
-    -- Apply the buff to the new target if it isn't already buffed, snapshotting its
-    -- pre-buff values first.
+    -- Apply the buff to the new target if it isn't already buffed.
     if target and target.ability and not target.ability.already_big_and_fat then
-        local snap = { ability = entr_rb_deep(target.ability) }
-        if target.base then snap.base = entr_rb_deep(target.base) end
         if Spectrallib.manipulate(target, { value = temp }) then
             target.ability.already_big_and_fat = true
-            chicken.rotisserie_snapshot = snap
         end
     end
 
