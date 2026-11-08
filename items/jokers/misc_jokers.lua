@@ -8374,6 +8374,7 @@ Entropy.Joker{
         }
     end,
     generate_ui = function(self, info_queue, card, desc_nodes, specific_vars, full_UI_table)
+        card = card or self:create_fake_card()
         SMODS.Center.generate_ui(self, info_queue, card, desc_nodes, specific_vars, full_UI_table)
         if card.ability.extra.hand == "High Card" then
             
@@ -8390,7 +8391,7 @@ Entropy.Joker{
                 end
             end
             if #cards > 0 then
-                Entropy.card_area_preview(G.entrCardsPrev, full_UI_table.multi_box[1], {
+                Entropy.card_area_preview(G.entrCardsPrev, full_UI_table.multi_box and full_UI_table.multi_box[1], {
                     cards = cards,
                     override = true,
                     w = 2.2,

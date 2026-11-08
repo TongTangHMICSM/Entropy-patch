@@ -432,6 +432,7 @@ Entropy.Joker{
         "j_entr_skullcry"
     },
     generate_ui = function(self, info_queue, card, desc_nodes, specific_vars, full_UI_table)
+        card = card or self:create_fake_card()
         Entropy.generate_void_invert_uibox(self, info_queue, card, desc_nodes, specific_vars, full_UI_table)
         if G.jokers then
             G.ARGS.flame_handler[tostring(card.ability.extra.val).."_chips"] = G.ARGS.flame_handler[tostring(card.ability.extra.val).."_chips"] or copy_table(G.ARGS.flame_handler.chips)
