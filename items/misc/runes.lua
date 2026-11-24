@@ -1154,7 +1154,16 @@ Entropy.RuneTag{
                                     trigger = "after",
                                     blocking = false,
                                     func = function()
-                                        G.GAME.blind:set_blind(G.P_BLINDS[G.GAME.round_resets.blind_choices[bl]])
+                                        -- blind_choices holds a save-supplied key and may point at a
+                                        -- placeholder that is not a registered blind (Entropy's own
+                                        -- "bl_entr_void" during the EE buildup, which is deliberately
+                                        -- blacklisted from becoming a blind). set_blind(nil) would
+                                        -- blow up inside Blind:set_blind, so only swap when the center
+                                        -- really exists.
+                                        local bl_center = G.P_BLINDS[G.GAME.round_resets.blind_choices[bl]]
+                                        if bl_center then
+                                            G.GAME.blind:set_blind(bl_center)
+                                        end
                                         G.STATE = G.STATES.ROUND_EVAL
                                         G.STATE_COMPLETE = false
                                         G.GAME.no_saved = nil
