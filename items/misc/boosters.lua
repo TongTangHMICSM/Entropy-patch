@@ -230,10 +230,7 @@ function create_inverted_card(area, seed)
         return SMODS.create_card{set = Entropy.get_random_set(G.GAME.modifiers.entr_parakmi)}
     end
     local rune
-    if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-    if G.GAME.entr_diviner then
-        if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-    end
+    if pseudorandom("entr_generate_rune") < (G.GAME.entr_diviner and 0.12 or 0.06) then rune = true end
     if rune then
         return SMODS.create_card{set = "Pact", skip_materialize = true, area = G.pack_cards}
     end

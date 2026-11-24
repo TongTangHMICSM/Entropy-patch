@@ -494,10 +494,7 @@ Entropy.Joker{
                 if k == "Planet" or k == "Tarot" then
                     local rune
                     local rare_rune
-                    if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-                    if G.GAME.entr_diviner then
-                        if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-                    end
+                    if pseudorandom("entr_generate_rune") < (G.GAME.entr_diviner and 0.12 or 0.06) then rune = true end
                     if rune then
                         k = "Rune"
                     end

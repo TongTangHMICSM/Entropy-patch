@@ -2894,10 +2894,7 @@ SMODS.Booster:take_ownership_by_kind('Arcana', {
 	create_card = function(self, card, i)
         local rune
         local rare_rune
-        if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-		if G.GAME.entr_diviner then
-            if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-        end
+        if pseudorandom("entr_generate_rune") < (G.GAME.entr_diviner and 0.12 or 0.06) then rune = true end
         if not G.SETTINGS.entropy_tutorial_complete then
             rune = nil
         end
@@ -2919,10 +2916,7 @@ SMODS.Booster:take_ownership_by_kind('Celestial', {
 	create_card = function(self, card, i)
         local rune
         local rare_rune
-        if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-		if G.GAME.entr_diviner then
-            if pseudorandom("entr_generate_rune") < 0.06 then rune = true end
-        end
+        if pseudorandom("entr_generate_rune") < (G.GAME.entr_diviner and 0.12 or 0.06) then rune = true end
         if G.GAME.round_resets.ante == 2 and G.GAME.round_resets.blind_states["Small"] == "Defeated" and not G.SETTINGS.entropy_tutorial_complete then 
             if i == 1 then
                 return create_card("Rune", G.pack_cards, nil, nil, true, true, "c_entr_jera", "spe")
@@ -3576,12 +3570,22 @@ end
 local gnv_ref = SMODS.get_next_vouchers
 function SMODS.get_next_vouchers(vouchers)
     local ret = gnv_ref(vouchers)
-    if G.GAME.deck_voucher_rate and (G.GAME.deck_voucher_round or 0) % G.GAME.deck_voucher_rate == 0 then
-        local center = SMODS.poll_object{set = "Back"}
-        ret[#ret+1] = center
-        ret.spawn[center] = true
+    -- Expansion Pack: add a deck to the voucher slots every G.GAME.deck_voucher_rate
+    -- refreshes. The counter has to be advanced *before* the modulo is tested: it used to be
+    -- tested first and incremented afterwards, so the starting value (nil treated as 0) and
+    -- the value stored by that first call (also 0) both passed "% rate == 0" and the deck
+    -- appeared in two consecutive shops before settling into the intended cadence.
+    if G.GAME.deck_voucher_rate then
+        G.GAME.deck_voucher_round = (G.GAME.deck_voucher_round or 0) + 1
+        if G.GAME.deck_voucher_round % G.GAME.deck_voucher_rate == 0 then
+            local center = SMODS.poll_object{set = "Back"}
+            if center then
+                ret[#ret+1] = center
+                ret.spawn = ret.spawn or {}
+                ret.spawn[center] = true
+            end
+        end
     end
-    G.GAME.deck_voucher_round = (G.GAME.deck_voucher_round or -1) + 1
     return ret
 end
 

@@ -729,12 +729,29 @@ local TrumpCardAllow = {
     ["Code"] = true
 }
 
+-- States in which a card is being *offered* to the player: the shop shelf and every flavour of
+-- booster pack. Steamodded's Card:open sets SMODS_BOOSTER_OPENED for all packs (the vanilla
+-- TAROT_PACK/PLANET_PACK/... assignments are gone), so gating Marked Cards on SHOP alone meant
+-- its 10% only ever saw tarots/planets that happened to be stocked in a shop slot, never the
+-- ones opened from packs -- which is where consumables actually come from.
+-- G.STATES is built by Game:init, so it has to be read at call time, not at load time.
+local function entr_offer_state()
+    local s = G.STATES or {}
+    return G.STATE == s.SHOP
+        or G.STATE == s.SMODS_BOOSTER_OPENED
+        or G.STATE == s.TAROT_PACK
+        or G.STATE == s.PLANET_PACK
+        or G.STATE == s.SPECTRAL_PACK
+        or G.STATE == s.STANDARD_PACK
+        or G.STATE == s.BUFFOON_PACK
+end
+
 function Entropy.post_create_card(card, from_booster, forced_key)
     if G.SETTINGS.paused then return end
     local set = card.config.center.set
     local key = card.config.center.key
     if not Entropy.is_inverted(card.config.center) and set ~= "Joker"
-        and pseudorandom("marked") < 0.10 and G.GAME.Marked and G.STATE == G.STATES.SHOP and (not card.area or not card.area.config.collection) and Entropy.inversion(card) then
+        and pseudorandom("marked") < 0.10 and G.GAME.Marked and entr_offer_state() and (not card.area or not card.area.config.collection) and Entropy.inversion(card) then
         if card.config.center_key ~= "c_entr_flipside" then
             local ret = {}
             if card.config.center.calculate then

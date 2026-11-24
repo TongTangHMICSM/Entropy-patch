@@ -162,33 +162,24 @@ end
 '''
 match_indent = true
 
+# Starter Kit ("Booster Packs may replace cards in the shop").
+#
+# This used to have two patches: one that appended a {type = "Booster"} entry to `rates` and
+# one that forced `args.set`. The first could never work -- `polled_rate` is scaled by
+# `total_rate`, which does not include `G.GAME.booster_rate`, so a Booster band appended to the
+# end of `rates` sits beyond the polled range and is unreachable -- and both patterns matched a
+# pre-26.x Steamodded source anyway (the ctype_buffer loop gained a cry_percrate line, and the
+# args line gained `front = false`), so the voucher did nothing at all.
+# Roll the override directly against the summed rate weights instead.
 [[patches]]
 [patches.pattern]
 target = 'functions/UI_definitions.lua'
 pattern = '''
-for _, v in ipairs(SMODS.ConsumableType.ctype_buffer) do
-    if not (v == 'Tarot' or v == 'Planet' or v == 'Spectral') then
-        table.insert(rates, { type = v, val = G.GAME[v:lower()..'_rate'] })
-    end
-end
-'''
-position = 'before'
-payload = '''
-if G.GAME.booster_rate then
-  table.insert(rates, { type = "Booster", val = G.GAME.booster_rate })
-end
-'''
-match_indent = true
-
-[[patches]]
-[patches.pattern]
-target = 'functions/UI_definitions.lua'
-pattern = '''
-local args = {set = v.type, area = area, key_append = 'sho'}
+local args = {set = v.type, area = area, key_append = 'sho', front = false}
 '''
 position = 'after'
 payload = '''
-if G.GAME.booster_rate then
+if G.GAME.booster_rate and _total_weight and _total_weight > 0 then
   if pseudorandom("entr_shop_booster") < G.GAME.booster_rate / _total_weight then args.set = "Booster" end
 end
 '''
@@ -204,7 +195,7 @@ position = 'before'
 payload = '''
 local _total_weight = 0
 for _, v in ipairs(rates) do
-  _total_weight = _total_weight + v.val or 0
+  _total_weight = _total_weight + (v.val or 0)
 end
 '''
 match_indent = true
