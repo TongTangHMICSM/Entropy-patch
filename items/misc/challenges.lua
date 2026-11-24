@@ -40,7 +40,11 @@ function Game:start_run(args)
             9999, 9999,
             0,
             0, 
-            {card_limit = 9999, type = 'joker', highlight_limit = 0}
+            -- highlight_limit defaults to 5, but this is an offscreen storage area that is
+            -- never highlighted. With limit 0, vanilla's add_to_highlighted sees
+            -- #highlighted (0) >= limit (0) and calls remove_from_highlighted(self.highlighted[1]),
+            -- which is nil -> "attempt to index local 'card'". Keep a real limit instead.
+            {card_limit = 9999, type = 'joker', highlight_limit = 1}
         )
     G.HUD_runes = {}
     G.HUD_curses = {}
