@@ -1048,6 +1048,68 @@ function SMODS.create_card(t, ...)
     return scc_ref(t, ...)
 end
 
+-- ---------------------------------------------------------------------------
+-- Shop stock rates (object_weights shop path)
+-- ---------------------------------------------------------------------------
+-- With Steamodded's object_weights optional feature enabled, create_card_for_shop() returns
+-- early and shop stock is built by SMODS.create_shop_card -> SMODS.poll_object_type instead.
+-- The lovely patches that target the body of create_card_for_shop therefore never run, which
+-- silently disabled two rate features:
+--   * Cryptid's *acclimator vouchers (Tarot/Planet Acclimator). Their Run Info sliders write
+--     G.GAME.cry_percrate[type] (a percentage) because the voucher text promises "control of the
+--     shop's Planet Rate"; the old patch used to fold it into the per-type shop weights.
+--   * Entropy's Starter Kit, which uses G.GAME.booster_rate to swap a share of shop slots for
+--     booster packs.
+-- Re-apply both on the path that actually builds shops nowadays.
+if SMODS.optional_features and SMODS.optional_features.object_weights and SMODS.poll_object_type then
+    local entr_poll_object_type_ref = SMODS.poll_object_type
+
+    local function entr_shop_rate_types(args)
+        local keys = {}
+        if args and args.types then
+            for _, v in ipairs(args.types) do keys[#keys + 1] = v end
+            return keys
+        end
+        keys[1] = "Joker"
+        keys[2] = "playing_card"
+        for _, v in ipairs(SMODS.ConsumableType.obj_buffer) do keys[#keys + 1] = v end
+        return keys
+    end
+
+    function SMODS.poll_object_type(args)
+        local keys = entr_shop_rate_types(args)
+
+        -- Scale every type's weight by its cry_percrate percentage for the duration of the poll,
+        -- then always put the real rates back (also on error) so nothing else observes them.
+        local saved = {}
+        for _, v in ipairs(keys) do
+            local name = tostring(v):lower()
+            local rate_key = name .. "_rate"
+            local rate = G.GAME[rate_key]
+            local perc = G.GAME.cry_percrate and G.GAME.cry_percrate[name]
+            if type(rate) == "number" and type(perc) == "number" and perc ~= 100 then
+                saved[rate_key] = rate
+                G.GAME[rate_key] = rate * (perc / 100)
+            end
+        end
+        local ok, ret = pcall(entr_poll_object_type_ref, args)
+        for rate_key, rate in pairs(saved) do G.GAME[rate_key] = rate end
+        if not ok then error(ret) end
+
+        -- Starter Kit: hand a share of shop slots to booster packs. Chance matches a weighted
+        -- Booster entry: rate / (total of all shop type rates + booster_rate).
+        if G.GAME.booster_rate and ret ~= "Booster" then
+            local total = 0
+            for _, v in ipairs(keys) do
+                total = total + (G.GAME[tostring(v):lower() .. "_rate"] or 0)
+            end
+            local chance = G.GAME.booster_rate / (total + G.GAME.booster_rate)
+            if pseudorandom("entr_shop_booster") < chance then ret = "Booster" end
+        end
+        return ret
+    end
+end
+
 local ref = create_card
 function create_card(_type, area, legendary, _rarity, skip_materialize, soulable, forced_key, key_append, ...)
     -- A forced key that is not registered builds a Card with a nil center, which later
