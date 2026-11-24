@@ -136,7 +136,11 @@ function Entropy.register_reverse_planet(key, handname, sprite_pos, func, cost,l
         end
     end,
     in_pool = function(self, args)
-      if G.GAME.hands[self.config.handname] and G.GAME.hands[self.config.handname].visible then return true end
+      local handname = self.config.handname
+      -- Cards without a single tied hand (Black Dwarf, Strange Star, ...) are always
+      -- poolable; only gate cards that are bound to one specific poker hand.
+      if type(handname) ~= "string" or handname == "" then return true end
+      if G.GAME.hands[handname] and G.GAME.hands[handname].visible then return true end
       return false
     end,
     calculate = calc or function(self, card, context)
@@ -173,6 +177,17 @@ function Entropy.bdwarf(self, card, area, copier, number)
     { sound = "button", volume = 0.7, pitch = 0.8, delay = 0.3 },
     { handname = localize("k_level_asc"), chips = "...", mult = "...", level = "..." }
   )
+  local asc_power = (card.ability.bdwarf or 0) * number
+  local hands = {}
+  for hand, v in pairs(G.GAME.hands) do
+    if v.visible then hands[#hands+1] = hand end
+  end
+  SMODS.upgrade_poker_hands({
+    hands = hands,
+    from = used_consumable,
+    ascension_power = asc_power,
+    instant = true
+  })
   delay(1.0)
   G.E_MANAGER:add_event(Event({
     trigger = "after",
@@ -181,7 +196,7 @@ function Entropy.bdwarf(self, card, area, copier, number)
       play_sound("tarot1")
       ease_colour(G.C.UI_CHIPS, HEX("ffb400"), 0.1)
       ease_colour(G.C.UI_MULT, HEX("ffb400"), 0.1)
-      Cryptid.pulse_flame(0.01, sunlevel)
+      Cryptid.pulse_flame(0.01, G.GAME.sunlevel)
       if used_consumable.juice_up then used_consumable:juice_up(0.8, 0.5) end
       G.E_MANAGER:add_event(Event({
         trigger = "after",
