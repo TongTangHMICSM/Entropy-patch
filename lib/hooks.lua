@@ -2068,8 +2068,16 @@ G.FUNCS.hand_text_UI_set = function(e)
 end
 
 local add_tagref = add_tag
-function add_tag(_tag, ...)
+function add_tag(_tag, from_skip, ...)
     if type(_tag) == "table" then
+        -- Single choke point for bogus tags: Tag(nil) / Tag("something unregistered") builds a
+        -- tag whose key is the literal "unknown", and Steamodded's add_tag asserts on unknown
+        -- keys ("Could not find tag "unknown""), which takes the whole run down. Drop it here
+        -- instead, whoever produced it.
+        if not (_tag.key and G.P_TAGS[_tag.key]) then
+            print("[Entropy] add_tag: dropping tag with unknown key (" .. tostring(_tag.key) .. ")")
+            return
+        end
         if not _tag.ability.added_to_deck then
             for i, v in pairs(SMODS.get_card_areas('jokers')) do
                 for a, card in pairs(v.cards) do
@@ -2080,13 +2088,21 @@ function add_tag(_tag, ...)
                 end
             end
         end
-        add_tagref(_tag, ...)
+        add_tagref(_tag, from_skip, ...)
         _tag.ability.added_to_deck = true
         if not G.GAME.autostart_tags then G.GAME.autostart_tags = {} end
+        -- "(~)$ autostart" replays tags that were obtained by skipping blinds, so remember
+        -- every skip tag here. This list used to be created empty and never filled, which left
+        -- autostart's use() picking from an empty pool: pseudorandom_element returned nil,
+        -- Tag(nil) produced a "unknown" tag and Steamodded's add_tag asserted
+        -- ("Could not find tag "unknown"").
+        if from_skip and _tag.key and G.P_TAGS[_tag.key] then
+            G.GAME.autostart_tags[#G.GAME.autostart_tags + 1] = _tag.key
+        end
     else    
-        add_tagref(_tag, ...)
+        add_tagref(_tag, from_skip, ...)
     end
-    G.GAME.last_tag = _tag.key
+    if type(_tag) == "table" then G.GAME.last_tag = _tag.key end
 end
 
 local upd = Game.update

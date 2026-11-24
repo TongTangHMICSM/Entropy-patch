@@ -1470,12 +1470,29 @@ Entropy.Consumable{
         tags = 3
     },
     use = function(self, card, area, copier)
-        for i = 1, card.ability.tags do
-            add_tag(Tag(pseudorandom_element(G.GAME.autostart_tags, pseudoseed("autostart"))))
+        -- Only replay keys that still resolve to a registered tag. The old code looped over
+        -- whatever was in G.GAME.autostart_tags and called Tag() on the result; an empty list
+        -- made pseudorandom_element return nil, Tag(nil) built an "unknown" tag and Steamodded's
+        -- add_tag asserted ("Could not find tag "unknown""), which crashed the run.
+        local pool = {}
+        for _, v in ipairs(G.GAME.autostart_tags or {}) do
+            local key = type(v) == "table" and v.key or v
+            if type(key) == "string" and G.P_TAGS[key] then pool[#pool + 1] = key end
+        end
+        if #pool == 0 then
+            card_eval_status_text(card, "extra", nil, nil, nil, { message = localize("k_nope_ex"), colour = G.C.RED })
+            return
+        end
+        for i = 1, (tonumber(card.ability.tags) or 0) do
+            add_tag(Tag(pseudorandom_element(pool, pseudoseed("autostart"))))
         end
     end,
     can_use = function(self, card)
-        return G.GAME.autostart_tags
+        for _, v in ipairs(G.GAME.autostart_tags or {}) do
+            local key = type(v) == "table" and v.key or v
+            if type(key) == "string" and G.P_TAGS[key] then return true end
+        end
+        return false
 	end,
     loc_vars = function(self, q, card)
         return {

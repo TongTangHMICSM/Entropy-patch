@@ -335,7 +335,10 @@ function Tag:rune_remove()
 end
 local at = add_tag
 function add_tag(tag, from_skip, no_copy)
-	at(tag)
+	-- forward every argument: dropping from_skip made every inner add_tag wrapper (Entropy's own
+	-- skip-tag bookkeeping and Steamodded's add_tag(tag, from_skip, no_copy)) believe the tag did
+	-- not come from a blind skip.
+	at(tag, from_skip, no_copy)
 	if #G.HUD_tags > 6 then
 		for i = 2, #G.HUD_tags do
 			G.HUD_tags[i].config.offset.y = 0.9 - 0.9 * 6 / #G.HUD_tags
