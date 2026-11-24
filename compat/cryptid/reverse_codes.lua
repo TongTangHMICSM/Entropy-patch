@@ -834,10 +834,9 @@ Entropy.Consumable{
     },
     pos = {x=4,y=3},
     use = function(self, card, area, copier)
-        local card = Entropy.get_highlighted_cards({G.shop_jokers, G.shop_booster, G.shop_vouchers}, card, 1, card.ability.extra)[1]
-        card:add_sticker("entr_pinned", true)
-        local card = Entropy.get_highlighted_cards({G.shop_jokers, G.shop_booster, G.shop_vouchers}, card, 1, card.ability.extra)[1]
-        card:juice_up()
+        local target = Entropy.get_highlighted_cards({G.shop_jokers, G.shop_booster, G.shop_vouchers}, card, 1, card.ability.extra)[1]
+        target:add_sticker("entr_pinned", true)
+        target:juice_up()
 
     end,
     can_use = function(self, card)
@@ -1260,10 +1259,9 @@ Entropy.Consumable{
     atlas = "consumables",
     pos = {x=0,y=5},
     use = function(self, card, area, copier)
-        local card = Entropy.get_highlighted_cards({G.jokers, G.consumeables}, card, 1, 1)[1]
-        card:add_sticker("desync", true)
-        local card = Entropy.get_highlighted_cards({G.jokers, G.consumeables}, card, 1, 1)[1]
-        card:juice_up()
+        local target = Entropy.get_highlighted_cards({G.jokers, G.consumeables}, card, 1, 1)[1]
+        target:add_sticker("desync", true)
+        target:juice_up()
 
     end,
     can_use = function(self, card)
