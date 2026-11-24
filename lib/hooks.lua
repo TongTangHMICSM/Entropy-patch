@@ -1469,7 +1469,7 @@ local set_abilityref = Card.set_ability
 function Card:set_ability(center, f, s)
     if type(center) == "string" then center = G.P_CENTERS[center] end
     if center and center.set == "Joker" and G.GAME.magic_skin_prob and pseudorandom("entr_magic_skin") < G.GAME.magic_skin_prob then
-        set_abilityref(self, G.P_CENTERS.j_entr_magic_skin, initial, delay_sprites)
+        set_abilityref(self, G.P_CENTERS.j_entr_magic_skin, f, s)
         return
     end
     if (self.config and self.config.center and Entropy.is_disavowed(self) and (not self.entr_aleph or self.ability.bypass_aleph)) or G.SETTINGS.paused then
@@ -3930,4 +3930,49 @@ function play_sound(sound_code, per, vol, ...)
         end
     end
     return entr_play_sound_ref(sound_code, safe_per, safe_vol, ...)
+end
+
+-- ---------------------------------------------------------------------------
+-- Highlight limit guard
+-- ---------------------------------------------------------------------------
+-- Card:click -> CardArea:add_to_highlighted does
+--     if #self.highlighted >= self.config.highlighted_limit then
+--         self:remove_from_highlighted(self.highlighted[1])
+-- and remove_from_highlighted always ends in card:highlight(false). For an area whose
+-- highlighted_limit is 0 the comparison is 0 >= 0 on an empty area, the first highlighted
+-- card is nil, and the game dies with
+--     cardarea.lua:272: attempt to index local 'card' (a nil value)
+-- Such areas exist as offscreen storage ("G.butterfly_jokers") and as "choose one" overlays
+-- (Finity's showdown choice); an old save can also put a zeroed config back through
+-- CardArea:load, which replaces the live config with the saved one. Keep clickable areas at
+-- a limit of at least one after a load, and never let a nil card reach the vanilla
+-- dereference, so no area can kill the run this way.
+local entr_cardarea_load_ref = CardArea.load
+function CardArea:load(cardAreaTable, ...)
+    entr_cardarea_load_ref(self, cardAreaTable, ...)
+    local config = self.config
+    if config and (config.type == "joker" or config.type == "consumeable") then
+        local limit = config.highlighted_limit
+        if type(limit) ~= "number" then
+            local ok, num = pcall(function() return to_number and to_number(limit) end)
+            limit = (ok and type(num) == "number") and num or nil
+        end
+        if not limit or limit < 1 then config.highlighted_limit = 1 end
+    end
+end
+
+local entr_remove_from_highlighted_ref = CardArea.remove_from_highlighted
+local entr_highlight_warned = {}
+function CardArea:remove_from_highlighted(card, force)
+    if not card then
+        local config = self.config or {}
+        local key = tostring(config.type) .. "/" .. tostring(config.highlighted_limit)
+        if not entr_highlight_warned[key] then
+            entr_highlight_warned[key] = true
+            print("[Entropy] remove_from_highlighted(nil) on a " .. tostring(config.type) ..
+                " area (highlighted_limit " .. tostring(config.highlighted_limit) .. "), ignoring")
+        end
+        return
+    end
+    return entr_remove_from_highlighted_ref(self, card, force)
 end
