@@ -284,12 +284,39 @@ function Entropy.edition_tag(edition, key, ascendant, pos,order, credits)
             consider(context.card)
             consider_shop_items()
 
-            -- Nothing to edition yet: leave the tag untriggered so a later
-            -- store_joker_modify (or the next shop) can still use it.
-            if #targets == 0 then return end
+            -- Tag:apply_to_run sets G.CONTROLLER.locks[tag.ID] before handing off to
+            -- store_joker_modify tags and expects the tag to release it, the way the vanilla
+            -- Foil/Holo/Polychrome/Negative tags do inside their yep callbacks. It only releases
+            -- it for those four *names*, so a tag of ours that never reaches its own yep leaves
+            -- the lock set for good: Controller:update then sets self.locked = true and every
+            -- click is swallowed until the game changes stage. Both paths below therefore regrant
+            -- the lock explicitly.
+            local lock = tag.ID
+            local function release_lock()
+                if G.CONTROLLER and G.CONTROLLER.locks then G.CONTROLLER.locks[lock] = nil end
+            end
 
+            -- Nothing to edition yet: leave the tag untriggered so a later
+            -- store_joker_modify (or the next shop) can still use it, but still drop the lock
+            -- that apply_to_run is about to take (it runs *after* we return).
+            if #targets == 0 then
+                G.E_MANAGER:add_event(Event{
+                    func = function()
+                        release_lock()
+                        return true
+                    end
+                })
+                return
+            end
+
+            -- Mirror the vanilla edition tags: claim the card for this pass so a second edition
+            -- tag firing on the same card cannot start its own (unreleased) lock, and restore
+            -- whatever temp_edition value was there before when we are done.
+            local touched = {}
             for _, c in ipairs(targets) do
                 c.will_be_editioned = true
+                touched[#touched + 1] = { card = c, temp_edition = c.temp_edition }
+                c.temp_edition = true
             end
 
             tag:yep("+", G.C.DARK_EDITION, function()
@@ -305,14 +332,20 @@ function Entropy.edition_tag(edition, key, ascendant, pos,order, credits)
                     local area = G[area_key]
                     for _, v in ipairs((area and area.cards) or {}) do edition_one(v) end
                 end
+                release_lock()
                 return true
             end)
             tag.triggered = true
 
             G.E_MANAGER:add_event(Event{
                 func = function()
-                    for _, c in ipairs(targets) do
-                        if c then c.will_be_editioned = nil end
+                    release_lock()
+                    for _, rec in ipairs(touched) do
+                        local c = rec.card
+                        if c then
+                            c.will_be_editioned = nil
+                            c.temp_edition = rec.temp_edition
+                        end
                     end
                     for _, area_key in ipairs({ "shop_jokers", "shop_booster", "shop_vouchers" }) do
                         local area = G[area_key]
