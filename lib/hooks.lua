@@ -1061,8 +1061,16 @@ end
 --   * Entropy's Starter Kit, which uses G.GAME.booster_rate to swap a share of shop slots for
 --     booster packs.
 -- Re-apply both on the path that actually builds shops nowadays.
-if SMODS.optional_features and SMODS.optional_features.object_weights and SMODS.poll_object_type then
+--
+-- NOTE on the install guard: do NOT test SMODS.optional_features here. That table is still just
+-- { cardareas = {} } while mod files execute -- Steamodded only calls SMODS.get_optional_features()
+-- after every mod has loaded (src/preflight/loader.lua:800) -- so gating on
+-- optional_features.object_weights at load time silently skipped this hook entirely and left the
+-- acclimator sliders writing a value nothing read. SMODS.poll_object_type is only ever used by the
+-- object_weights shop path anyway, so install unconditionally and re-check the feature per call.
+if type(SMODS.poll_object_type) == "function" then
     local entr_poll_object_type_ref = SMODS.poll_object_type
+    local entr_shop_rates_logged = false
 
     local function entr_shop_rate_types(args)
         local keys = {}
@@ -1077,6 +1085,14 @@ if SMODS.optional_features and SMODS.optional_features.object_weights and SMODS.
     end
 
     function SMODS.poll_object_type(args)
+        if not (SMODS.optional_features and SMODS.optional_features.object_weights) then
+            return entr_poll_object_type_ref(args)
+        end
+        if not entr_shop_rates_logged then
+            entr_shop_rates_logged = true
+            print("[Entropy] shop stock rates hooked on the object_weights path")
+        end
+
         local keys = entr_shop_rate_types(args)
 
         -- Scale every type's weight by its cry_percrate percentage for the duration of the poll,
