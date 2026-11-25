@@ -1742,8 +1742,11 @@ Entropy.Joker{
         if context.first_hand_drawn or context.forcetrigger then
             local card = pseudorandom_element(G.hand.cards, pseudoseed("qu_card"))
             Entropy.flip_then({card}, function(card)
-                local elem = G.P_CENTERS[SMODS.poll_object({attributes = {"inverted_consumable"}, types = {"Consumeables"},})]
-                card:set_ability(elem)
+                local key = Entropy.poll_inverted_consumable("entr_qu")
+                local elem = key and G.P_CENTERS[key] or nil
+                if elem then
+                    card:set_ability(elem)
+                end
             end)
             G.E_MANAGER:add_event(Event({
                 blocking = false,

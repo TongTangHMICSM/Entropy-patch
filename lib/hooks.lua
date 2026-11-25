@@ -1138,7 +1138,20 @@ function create_card(_type, area, legendary, _rarity, skip_materialize, soulable
         _type = Entropy.get_random_set(next(find_joker("j_entr_parakmi")) or G.GAME.modifiers.entr_parakmi)
     end
     -- A booster can hand back a payload with neither set nor key; the pool code then dies in
-    -- SMODS.poll_object. Roll a Joker instead of taking the run down with it.
+    -- SMODS.poll_object. Honour the pack that is open before degrading to a Joker: an Inverted
+    -- pack must still give an inverted consumable, not a Joker.
+    if not _type and not forced_key then
+        local pack_center = SMODS.OPENED_BOOSTER
+            and SMODS.OPENED_BOOSTER.config
+            and SMODS.OPENED_BOOSTER.config.center
+        if pack_center and pack_center.kind == "Inverted" then
+            local inverted_key = Entropy.poll_inverted_consumable("entr_inverted_pack_fallback")
+            if inverted_key then
+                forced_key = inverted_key
+                _type = (G.P_CENTERS[inverted_key] or {}).set
+            end
+        end
+    end
     if not _type and not forced_key then
         print("[Entropy] create_card: no type and no forced key, rolling a Joker (booster="
             .. entr_pack_name() .. ", area=" .. tostring(area == G.pack_cards and "pack_cards" or area) .. ")")

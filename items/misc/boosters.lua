@@ -234,6 +234,10 @@ function create_inverted_card(area, seed)
     if rune then
         return SMODS.create_card{set = "Pact", skip_materialize = true, area = G.pack_cards}
     end
+    local key = Entropy.poll_inverted_consumable("entr_twisted_pack")
+    if key then
+        return SMODS.create_card{key = key, skip_materialize = true, area = G.pack_cards}
+    end
     return SMODS.create_card{attributes = {"inverted_consumable"}, types = {"Consumeables"}, skip_materialize = true, area = G.pack_cards}
 end
 

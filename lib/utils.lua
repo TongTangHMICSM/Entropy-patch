@@ -364,6 +364,33 @@ function Entropy.edition_tag(edition, key, ascendant, pos,order, credits)
     }
 end
 
+-- Resolve a random inverted consumable (the "twisted"/inverted pool).
+--
+-- SMODS.poll_object with attributes + types culls everything that is already in G.GAME.used_jokers
+-- unless Showman is held, and cull_pool turns the whole result into 'UNAVAILABLE' entries when it
+-- does. poll_object then returns nil, and SMODS.create_card quietly builds a card spec with no
+-- set/key at all, which is what produced "[Entropy] create_card payload without key/set" and the
+-- Joker-fallback warnings. The packs promise an inverted consumable, so retry allowing duplicates
+-- and finally pick straight from the attribute pool instead of degrading into a Joker.
+function Entropy.poll_inverted_consumable(seed)
+    if not (G and G.GAME and G.P_CENTERS) then return end
+    local ok, key = pcall(SMODS.poll_object, { attributes = { "inverted_consumable" }, types = { "Consumeables" } })
+    if ok and key and G.P_CENTERS[key] then return key end
+    ok, key = pcall(SMODS.poll_object, { attributes = { "inverted_consumable" }, types = { "Consumeables" }, allow_duplicates = true })
+    if ok and key and G.P_CENTERS[key] then return key end
+    local pool = {}
+    local attribute_pool = SMODS.get_attribute_pool and SMODS.get_attribute_pool("inverted_consumable") or {}
+    for _, v in ipairs(attribute_pool) do
+        local center = G.P_CENTERS[v]
+        if center and not (G.GAME.banned_keys and G.GAME.banned_keys[v]) and center.unlocked ~= false then
+            pool[#pool + 1] = v
+        end
+    end
+    if #pool > 0 then
+        return pseudorandom_element(pool, pseudoseed(seed or "entr_inverted_consumable"))
+    end
+end
+
 function Entropy.get_joker_sum_rarity(loc)
     if not G.jokers or #G.jokers.cards <= 0 then return "none" end
     local rarity = 1
