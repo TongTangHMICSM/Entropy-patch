@@ -86,7 +86,15 @@ Entropy.Consumable{
     init = function(self)
 		local ccl = Card.click
 		function Card:click()
-			if G.GAME.USING_DEFINE then
+			-- DefineSource is the authoritative "picker is open" marker: another mod's exit handler
+			-- can clear the USING_* flags out from under us (Cryptid's exit_overlay_menu_code clears
+			-- POINTER_COLLECTION, Entropy's clears USING_DEFINE), and then every click in the picker
+			-- used to fall through to the vanilla handler and do nothing at all.
+			-- DefineSource is the authoritative "picker is open" marker: another mod's exit handler
+			-- can clear the USING_* flags out from under us (Cryptid's exit_overlay_menu_code clears
+			-- POINTER_COLLECTION, Entropy's clears USING_DEFINE), and then every click in the picker
+			-- used to fall through to the vanilla handler and do nothing at all.
+			if G.GAME.USING_DEFINE or (G.GAME.DefineSource and G.OVERLAY_MENU) then
 				if not self.debuff then
 					-- Match Cryptid's #pointer condition exactly: the submenu chain is for building a
 					-- custom *playing card* (c_base / an Enhanced card / a card from the Edition page).

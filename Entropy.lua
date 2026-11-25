@@ -50,6 +50,22 @@ for i, category in pairs(Entropy.contents) do
                 item.attributes[#item.attributes+1] = "inverted_consumable"
                 Entropy.item = item
             end
+            -- Run the object's own init hook before registering it.
+            --
+            -- Steamodded only calls `init` as a *class* method (src/game_object.lua uses it for
+            -- SMODS.Scoring_Calculations); it never invokes a definition's `init` field. Mods that
+            -- use the field therefore have to call it themselves, which is exactly what Cryptid
+            -- does in Cryptid.lua ("if item.init then item:init() end"). Entropy was missing that
+            -- call, so every `init = function(self)` in this mod silently never ran - including
+            -- #define's Card:click / CardArea:emplace overrides, which is why clicking a card in
+            -- the define picker did nothing at all.
+            if item.init and type(item.init) == "function" and not item.entr_init_done then
+                item.entr_init_done = true
+                local ok, err = pcall(item.init, item)
+                if not ok then
+                    print("[Entropy] init hook for '" .. tostring(item.key) .. "' failed: " .. tostring(err))
+                end
+            end
             item.order = nil
             SMODS[i](item)
         end
