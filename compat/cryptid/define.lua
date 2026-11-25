@@ -88,7 +88,13 @@ Entropy.Consumable{
 		function Card:click()
 			if G.GAME.USING_DEFINE then
 				if not self.debuff then
-					if self.config.center.key == "c_base" or self.config.center.set == "Enhanced" or self.edition or G.GAME.POINTER_SUBMENU == "Edition" then
+					-- Match Cryptid's #pointer condition exactly: the submenu chain is for building a
+					-- custom *playing card* (c_base / an Enhanced card / a card from the Edition page).
+					-- This used to test `self.edition`, i.e. whether the clicked card simply *has* an
+					-- edition, so every editioned item in the collection -- a Negative or Foil Joker
+					-- included -- was swallowed by the Rank -> Suit -> ... chain and could never be
+					-- picked as a #define replacement.
+					if self.config.center.key == "c_base" or self.config.center.set == "Enhanced" or self.config.center.set == "Edition" or G.GAME.POINTER_SUBMENU == "Edition" then
 						--submenu stuff
 						if G.GAME.POINTER_SUBMENU == "Rank" then
 							G.GAME.POINTER_PLAYING.rank = self.base.value
