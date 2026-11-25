@@ -1,3 +1,49 @@
+-- "#define" opens the collection as a picker ("Replace all future instances of a selected card
+-- with a card of your choice, then destroy the selected card"). The card being replaced is the one
+-- highlighted when #define is used, and the replacement is whatever gets clicked in the picker.
+--
+-- Two things went wrong with that:
+--  * The target was re-derived from the live highlight state at click time, so if the highlight
+--    was gone by then (very easy: any click in the collection, a reroll, or simply using #define
+--    with the picker taking long enough) the loop over "highlighted cards" was empty and the menu
+--    just closed without defining anything.
+--  * Nothing cleared the picker flags unless you successfully clicked a card. The collection's
+--    back button goes through exit_overlay_menu (its back_func is 'options' during a run), not
+--    exit_overlay_menu_code, so G.GAME.USING_DEFINE stayed true and every later Card:click was
+--    swallowed by the define handler, while G.GAME.POINTER_COLLECTION kept the collection UI in
+--    pointer mode.
+-- Snapshot the target when the card is used, and tear the state down on every exit path.
+local function entr_clear_define_state()
+    if not G or not G.GAME then return end
+    G.GAME.USING_DEFINE = nil
+    G.GAME.USING_CODE = nil
+    G.GAME.POINTER_COLLECTION = nil
+    G.GAME.POINTER_SUBMENU = nil
+    G.GAME.POINTER_PLAYING = nil
+    G.GAME.DefineSource = nil
+    local doomed = G.GAME.CODE_DESTROY_CARD
+    G.GAME.CODE_DESTROY_CARD = nil
+    if doomed and not doomed.removed and doomed.start_dissolve then
+        doomed:start_dissolve()
+    end
+end
+Entropy.clear_define_state = entr_clear_define_state
+
+-- Guarded so it only ever fires for the define picker.
+local entr_exit_overlay_ref = G.FUNCS.exit_overlay_menu
+function G.FUNCS.exit_overlay_menu(...)
+    local close_define = G.GAME and G.GAME.USING_DEFINE
+    if close_define then entr_clear_define_state() end
+    return entr_exit_overlay_ref(...)
+end
+
+local entr_exit_overlay_code_ref = G.FUNCS.exit_overlay_menu_code
+function G.FUNCS.exit_overlay_menu_code(...)
+    local close_define = G.GAME and G.GAME.USING_DEFINE
+    if close_define then entr_clear_define_state() end
+    return entr_exit_overlay_code_ref(...)
+end
+
 Entropy.Consumable{
     order = 2000 + 32,
     key = "define",
@@ -17,6 +63,12 @@ Entropy.Consumable{
     end,
 
     use = function(self, card)
+        -- Remember which card is being redefined while it is still highlighted: the picker is an
+        -- overlay and the highlight does not survive whatever the player does inside it.
+        G.GAME.DefineSource = Entropy.get_highlighted_cards(
+            {G.hand, G.consumeables, G.jokers, G.shop_booster, G.pack_cards, G.shop_jokers, G.shop_vouchers},
+            card, 1, 1
+        )
         local copy = copy_card(card)
         G.consumeables:emplace(copy)
 		G.GAME.USING_CODE = true
@@ -96,12 +148,31 @@ Entropy.Consumable{
 							end
 						end
 					else
+                        -- Prefer the snapshot taken when #define was used; only fall back to the
+                        -- live highlights for saves/uses that predate it.
+                        local cards = G.GAME.DefineSource
+                        if not cards or #cards == 0 then
+                            cards = Entropy.get_highlighted_cards({G.hand, G.consumeables, G.jokers, G.shop_booster, G.pack_cards, G.shop_jokers, G.shop_vouchers}, {}, 1, 1)
+                        end
+                        if not cards or #cards == 0 then
+                            -- Nothing was selected to redefine (the highlight was gone before
+                            -- #define was used). Keep the picker open so it can be backed out of
+                            -- instead of swallowing the click and closing silently.
+                            attention_text({
+                                text = localize('k_nope_ex'),
+                                colour = G.C.RED,
+                                scale = 0.5,
+                                hold = 0.6,
+                                align = 'cm',
+                                major = self,
+                            })
+                            return
+                        end
 						ccl(self)
                         if G.GAME.CODE_DESTROY_CARD then
                             G.GAME.CODE_DESTROY_CARD:start_dissolve()
                             G.GAME.CODE_DESTROY_CARD = nil
                         end
-                        local cards = Entropy.get_highlighted_cards({G.hand, G.consumeables, G.jokers, G.shop_booster, G.pack_cards, G.shop_jokers, G.shop_vouchers}, {}, 1, 1)
                         if not G.GAME.DefineKeys then G.GAME.DefineKeys = {} end
                         for i, card in pairs(cards) do
                             if card.config.center.set == "Default" or card.config.center.set == "Enhanced" then
@@ -111,6 +182,7 @@ Entropy.Consumable{
                             end
                             card:start_dissolve()
                         end
+                        G.GAME.DefineSource = nil
                         G.FUNCS.exit_overlay_menu_code()
 					end
 				end
