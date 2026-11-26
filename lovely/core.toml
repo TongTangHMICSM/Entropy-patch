@@ -142,3 +142,15 @@ payload = '''
 if v and type(v) == 'table' and v.config and v.config.center and v.config.center.key == key and (count_debuffed or not v.debuff) then
 '''
 match_indent = true
+
+[[patches]]
+[patches.pattern]
+target = 'game.lua'
+match_indent = true
+position = 'at'
+pattern = '''
+self.GAME.round_resets.blind = G.P_BLINDS[self.GAME.round_resets.blind.key]
+'''
+payload = '''
+self.GAME.round_resets.blind = G.P_BLINDS[self.GAME.round_resets.blind.key] or self.GAME.round_resets.blind
+'''

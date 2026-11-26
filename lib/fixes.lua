@@ -406,3 +406,25 @@ if type(entr_card_select_area_ref) == "function" then
         return "consumeables", true
     end
 end
+
+-- ---------------------------------------------------------------------------
+-- setting_blind without a blind
+-- ---------------------------------------------------------------------------
+-- Entropy's Endless Entropy buildup uses "bl_entr_void" as a blind *token*: it is deliberately not
+-- a registered blind, so a save made while it is the current blind reloads with
+-- G.GAME.round_resets.blind = nil (start_run maps the saved Blind back through G.P_BLINDS and finds
+-- nothing there). start_round then fires
+--     calculate_context({setting_blind = true, blind = G.GAME.round_resets.blind})
+-- with blind = nil, and vanilla's Chicot does `context.blind.boss`, which takes the whole run down
+-- with "attempt to index field 'blind' (a nil value)".
+--
+-- Keep the loaded Blind object when the center lookup misses (core.toml patches the line itself),
+-- and make sure a setting_blind context always carries the blind that is actually being set.
+local entr_calc_context_ref = SMODS.calculate_context
+function SMODS.calculate_context(context, ...)
+    if type(context) == "table" and context.setting_blind and not context.blind then
+        context.blind = (G.GAME and G.GAME.blind)
+            or (G.GAME and G.GAME.round_resets and G.GAME.round_resets.blind)
+    end
+    return entr_calc_context_ref(context, ...)
+end
