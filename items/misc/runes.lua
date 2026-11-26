@@ -1004,7 +1004,10 @@ Entropy.RuneTag{
     atlas = "rune_indicators",
     dependencies = {items = {"set_entr_runes"}},
     calculate = function(self, rune, context)
-        if context.game_over and to_big(G.GAME.dollars -G.GAME.bankrupt_at) > to_big(G.GAME.providence and 5 or 10)  then
+        -- "Costs $10 to prevent the next Death": needing *more* than the price meant a player
+        -- sitting on exactly $10 (or exactly $5 with Providence) died even though the card says
+        -- the rune can pay for it. Compare against the price itself.
+        if context.game_over and to_big(G.GAME.dollars -G.GAME.bankrupt_at) >= to_big(G.GAME.providence and 5 or 10)  then
             return {
                 func = function()
                     ease_dollars(G.GAME.providence and -5 or -10)
