@@ -301,6 +301,28 @@ function Entropy.repair_hand_cards()
             end
         end
     end
+    -- A card can be left *visually* highlighted without being in the selection list: code that
+    -- calls card:highlight(true) directly instead of area:add_to_highlighted produces a card that
+    -- eats a hand slot but can be neither played nor discarded (both only read G.hand.highlighted)
+    -- and cannot be deselected either, because Card:click sees highlighted == true and calls
+    -- remove_from_highlighted, which finds nothing in the list. Clear the phantom highlight and the
+    -- stale forced-selection flag that goes with it -- a genuinely forced card is always in the
+    -- list, so this can never break the "cards cannot be deselected" blind. Done before the dirty
+    -- block below so parse_highlighted() refreshes the displayed hand.
+    if G.STATE == G.STATES.SELECTING_HAND and G.hand.highlighted then
+        local in_selection = {}
+        for _, c in ipairs(G.hand.highlighted) do in_selection[c] = true end
+        for _, c in ipairs(G.hand.cards) do
+            if c and not c.removed and not in_selection[c] and c.highlighted then
+                pcall(function() c:highlight(false) end)
+                if c.ability and c.ability.forced_selection then
+                    -- a forced card that is not in the selection is stale, never legitimate
+                    c.ability.forced_selection = nil
+                end
+                dirty = true
+            end
+        end
+    end
     if dirty then
         G.hand:align_cards()
         -- a repaired hand can leave the highlight/selection out of sync

@@ -1241,10 +1241,21 @@ function Card:highlight(is_highlighted)
 				local card = pseudorandom_element(cards, pseudoseed("labyrinth"))
 				if card then
 					card.ability.forced_selection = true
-					G.GAME.blind.cards[#G.GAME.blind.cards + 1] = card
-					card:highlight(true)
+					-- Select it for real. card:highlight(true) only flips the visual state: the card
+					-- never entered G.hand.highlighted, so it could not be played or discarded
+					-- (Play/Discard only look at that list) while still eating a hand slot, and it
+					-- could not be deselected either -- Card:click calls remove_from_highlighted,
+					-- which refuses for forced cards and leaves the phantom highlight in place, so
+					-- the card stayed unusable in hand from one hand to the next.
+					G.hand:add_to_highlighted(card)
+					if card.highlighted then
+						G.GAME.blind.cards[#G.GAME.blind.cards + 1] = card
+					else
+						-- the selection limit was already full: do not leave a forced flag on a card
+						-- that was never selected
+						card.ability.forced_selection = nil
+					end
 				end
-				G.GAME.blind.cards[#G.GAME.blind.cards + 1] = self 
 			end
 			self.ability.forced_selection = true
 		end
