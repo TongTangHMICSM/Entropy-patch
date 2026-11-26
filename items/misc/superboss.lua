@@ -157,11 +157,22 @@ function Entropy.spawn_ee_ui()
         blocking = false,
         blockable = false,
         func = function()
-            if G.GAME.blind.in_blind then
-                G.I.UIBOX[index]:remove()
-                G.I.UIBOX[index2]:remove()
-                table.remove(G.I.UIBOX, index)
-                table.remove(G.I.UIBOX, index2)
+            if G.GAME.blind and G.GAME.blind.in_blind then
+                -- index/index2 are captured when this event is queued and only used once the blind
+                -- actually starts; by then the box list can be shorter (or those boxes removed
+                -- already), and G.I.UIBOX[index] being nil crashed the EE intro teardown with
+                -- "attempt to index a nil value".
+                for _, i in ipairs({ index, index2 }) do
+                    local box = G.I.UIBOX and G.I.UIBOX[i]
+                    if box and not box.REMOVED then box:remove() end
+                end
+                if G.I.UIBOX then
+                    -- table.remove errors on out-of-bounds positions (0 or > #t + 1), which is
+                    -- reachable here when the box list shrank or was already almost empty
+                    for _, i in ipairs({ index, index2 }) do
+                        if i >= 1 and i <= #G.I.UIBOX then table.remove(G.I.UIBOX, i) end
+                    end
+                end
                 return true
             end
         end
