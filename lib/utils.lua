@@ -125,10 +125,15 @@ function Entropy.invert(cards, flip, filter)
                 end
             end
             if i then
-                local shop = c.center.price
+                -- Same data as the animated branch above: a card has no `center` field (that is
+                -- the sprite, under children), and a center's calculate() may return nothing. The
+                -- animation-skipping path is what runs whenever animations are skipped (Amulet's
+                -- Talisman shim sets Talisman.config_file.disable_anims, Handy's skip >= 3 does the
+                -- same), so it is the path players hit most.
+                local shop = c.children and c.children.price or nil
                 local ret = {}
                 if c.config.center.calculate then
-                    ret = c.config.center:calculate(c, {being_inverted = true})
+                    ret = c.config.center:calculate(c, {being_inverted = true}) or {}
                 end
                 if not ret.prevent_inversion then
                     c.ability.fromflipside = true
